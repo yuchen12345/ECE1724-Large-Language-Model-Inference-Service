@@ -25,10 +25,10 @@ To address these limitations, our project aims to explore Rust as the foundation
 ---
 
 ## 4. References
-[1] Abhinav Ajitsaria, “What Is the Python Global Interpreter Lock (GIL)?,” Realpython.com, Mar. 06, 2018. Accessed: Oct. 06, 2025. [Online]. Available: https://realpython.com/python-gil/?utm_source
-[2] Aslan Zholdybay and Askar Aituov, “PYTHON CONCURRENCY FOR HIGH-LOAD MULTICORE PROCESSING,” Universum Technical sciences, vol. 134, no. 5, May 2025, doi: https://doi.org/10.32743/UniTech.2025.134.5.20073.
-[3] X. Piao and J.-K. Kim, “GMM: An Efficient GPU Memory Management-based Model Serving System for Multiple DNN Inference Models,” Proceedings of the 53rd International Conference on Parallel Processing, pp. 660–668, Aug. 2024, doi: https://doi.org/10.1145/3673038.3673122.
-[4] R. Prabhu, A. Nayak, J. Mohan, R. Ramjee, and A. Panwar, “vAttention: Dynamic Memory Management for Serving LLMs without PagedAttention,” arXiv.org, 2024. Accessed: Oct. 06, 2025. [Online]. Available: https://arxiv.org/abs/2405.04437?utm_source
+[1] Abhinav Ajitsaria, “What Is the Python Global Interpreter Lock (GIL)?,” Realpython.com, Mar. 06, 2018. Accessed: Oct. 06, 2025. [Online]. Available: https://realpython.com/python-gil/?utm_source  
+[2] Aslan Zholdybay and Askar Aituov, “PYTHON CONCURRENCY FOR HIGH-LOAD MULTICORE PROCESSING,” Universum Technical sciences, vol. 134, no. 5, May 2025, doi: https://doi.org/10.32743/UniTech.2025.134.5.20073.  
+[3] X. Piao and J.-K. Kim, “GMM: An Efficient GPU Memory Management-based Model Serving System for Multiple DNN Inference Models,” Proceedings of the 53rd International Conference on Parallel Processing, pp. 660–668, Aug. 2024, doi: https://doi.org/10.1145/3673038.3673122.  
+[4] R. Prabhu, A. Nayak, J. Mohan, R. Ramjee, and A. Panwar, “vAttention: Dynamic Memory Management for Serving LLMs without PagedAttention,” arXiv.org, 2024. Accessed: Oct. 06, 2025. [Online]. Available: https://arxiv.org/abs/2405.04437?utm_source  
 ‌
 ‌
 
