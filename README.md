@@ -37,24 +37,17 @@ Using Rocket, the backend will expose a set of REST endpoints:
 The system will implement Server-Sent Events (SSE) to support real-time token streaming. This allows the client to receive model outputs incrementally, simulating a conversational typing experience. The implementation will showcase asynchronous request handling and concurrency in Rust.
 ### (5) Minimal Chat Frontend
 A simple web-based interface (HTML + JavaScript) will demonstrate the service’s usability. Users can send prompts, view streaming responses in real time, and switch between loaded models. This frontend will serve as a functional demo rather than a production-grade UI.
-### (6) Evaluation and Deliverables
+### (6) Evaluation
 We will evaluate:
 - Response latency and memory usage under different workloads;
 - Concurrency performance with multiple simultaneous clients;
 - Accuracy and stability of model outputs.
-The final deliverables will include:
-- Rust source code for the backend;
-- Frontend chat demo;
-- Setup and API documentation;
-- Performance summary and a short demo video.
 
 By the end of the project, we will have a complete local LLM inference service that supports multiple models, provides real-time streaming, and manages concurrent users effectively — all running on local machines.
-
-
-
 ---
 
 ## 3. Tentative Plan
+The project will be completed collaboratively by both 2 members, with each person focusing on distinct but interdependent technical components to ensure a smooth integration of the entire system. The division of responsibilities is as follows:
 - Member A 
     - Focuses on integrating the Candle or Burn library for running LLMs.
     - Implements the model loading, unloading, and inference execution logic.
@@ -71,8 +64,8 @@ By the end of the project, we will have a complete local LLM inference service t
 	    - Implements client-side streaming logic.
 	    - Designs test cases to validate all API endpoints.
 	    - Conducts performance evaluations and documents results.
+	
 We plan to organize the work into five phases—including setup, vertical slice, feature expansion, test, and documentation/delivery phases:
-
 ### Phase 1—Setup (10-06 to 10-12)
 In this phase, we will research more on building an LLM inference service to build a foundational understanding of the Rust ML ecosystem. We will define our system architecture and stack for the project: Candle, Burn, or Mistral.rs for inference, Axum/Tokio for the server, and SSE or WebSockets for streaming. 
 
@@ -95,7 +88,7 @@ This phase will mainly be for testing and improving as we need to make sure the 
 - Check the response time and performance of the service when multiple users send requests at the same time.
   
 ### Phase 5-Documentation and delivery (12-01 to 12-15)
-In this part, we will finish a clear final documentation, prepare presentation slides, and demo video. Once everything is working normally, we will package the code so others can run it easily.
+In this part, we will finish a clear final documentation, prepare presentation slides, and demo video. Once everything is working normally, we will package the code so others can run it easily. 
 
 ---
 
