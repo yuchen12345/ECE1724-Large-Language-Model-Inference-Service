@@ -15,13 +15,62 @@ To address these two limitations, we propose building an LLM inference service w
 ---
 
 ## 2. Objective and Key Features
-### Objective
-### Key Features
+The goal of this project is to build a local LLM (Large Language Model) inference system that can host several lightweight open-source models, handle inference requests through a REST API, and send back responses in real time using streaming. Everything will run on local hardware to show that efficient multi-model LLM serving is possible without using cloud or commercial APIs.
+Specifically, the project aims to implement the following components:
+### (1) Core Inference Backend
+We will integrate a Rust-based framework such as Candle to run quantized open-source models (e.g., Mistral and LLaMA variants, each between 1–3B parameters). The backend will support:
+- Model loading, unloading, and inference execution;
+- Tokenization and incremental text generation;
+- Basic concurrency control to handle up to 10 simultaneous inference requests;
+- Resource management to prevent system overload.
+### (2) Multi-Model Management
+The service will maintain a registry of available models and allow users to switch between them dynamically. At least two models will be loaded during demonstration to show that the system can handle multiple configurations (e.g., Mistral-7B for general tasks and LLaMA-3B for lightweight inference).
+Endpoints will be provided to list, load, and unload models on demand.
+### (3) REST API for Inference Access
+Using Rocket, the backend will expose a set of REST endpoints:
+- GET /models — list all available models and their status.
+- POST /load — load a specific model into memory.
+- POST /infer — run inference and return a full response.
+- POST /infer?stream=true — stream the model’s output token by token.
+    The API will use structured JSON formats for both requests and responses to ensure clarity and compatibility with common tools like curl and Postman.
+### (4) Streaming Output for Real-Time Interaction
+The system will implement Server-Sent Events (SSE) to support real-time token streaming. This allows the client to receive model outputs incrementally, simulating a conversational typing experience. The implementation will showcase asynchronous request handling and concurrency in Rust.
+### (5) Minimal Chat Frontend
+A simple web-based interface (HTML + JavaScript) will demonstrate the service’s usability. Users can send prompts, view streaming responses in real time, and switch between loaded models. This frontend will serve as a functional demo rather than a production-grade UI.
+### (6) Evaluation and Deliverables
+We will evaluate:
+- Response latency and memory usage under different workloads;
+- Concurrency performance with multiple simultaneous clients;
+- Accuracy and stability of model outputs.
+The final deliverables will include:
+- Rust source code for the backend;
+- Frontend chat demo;
+- Setup and API documentation;
+- Performance summary and a short demo video.
+
+By the end of the project, we will have a complete local LLM inference service that supports multiple models, provides real-time streaming, and manages concurrent users effectively — all running on local machines.
+
+
 
 ---
 
 ## 3. Tentative Plan
-
+- Member A 
+    - Focuses on integrating the Candle or Burn library for running LLMs.
+    - Implements the model loading, unloading, and inference execution logic.
+    - Tunes performance parameters such as batch size and memory mapping.
+    - Ensures that inference works both synchronously and with token streaming.
+- Member B
+    - Backend Infrastructure: 
+        - Responsible for the overall server design and implementation using Axum.
+        - Builds REST endpoints and ensures concurrent handling of inference requests.
+        - Implements Server-Sent Events streaming pipeline.
+        - Works closely with the model integration lead to expose inference APIs.
+    - Frontend and Testing
+	    - Develops the minimal web-based chat interface for demonstration.
+	    - Implements client-side streaming logic.
+	    - Designs test cases to validate all API endpoints.
+	    - Conducts performance evaluations and documents results.
 ---
 
 ## 4. References
