@@ -39,26 +39,27 @@ The system will implement Server-Sent Events (SSE) to support real-time token st
 A simple web-based interface (HTML + JavaScript) will demonstrate the service’s usability. Users can send prompts, view streaming responses in real time, and switch between loaded models. This frontend will serve as a functional demo rather than a production-grade UI.
 
 By the end of the project, we will have a complete local LLM inference service that supports multiple models, provides real-time streaming, and manages concurrent users effectively — all running on local machines.
+
 ---
 
 ## 3. Tentative Plan
 The project will be completed collaboratively by both 2 members, with each person focusing on distinct but interdependent technical components to ensure a smooth integration of the entire system. The division of responsibilities is as follows:
 - Member A 
-    - Focuses on integrating the Candle or Burn library for running LLMs.
-    - Implements the model loading, unloading, and inference execution logic.
-    - Tunes performance parameters such as batch size and memory mapping.
-    - Ensures that inference works both synchronously and with token streaming.
+	- Focuses on integrating the Candle or Burn library for running LLMs.
+	- Implements the model loading, unloading, and inference execution logic.
+	- Tunes performance parameters such as batch size and memory mapping.
+	- Ensures that inference works both synchronously and with token streaming.
 - Member B
-    - Backend Infrastructure: 
-        - Responsible for the overall server design and implementation using Axum.
-        - Builds REST endpoints and ensures concurrent handling of inference requests.
-        - Implements Server-Sent Events streaming pipeline.
-        - Works closely with the model integration lead to expose inference APIs.
-    - Frontend and Testing
-	    - Develops the minimal web-based chat interface for demonstration.
-	    - Implements client-side streaming logic.
-	    - Designs test cases to validate all API endpoints.
-	    - Conducts performance evaluations and documents results.
+	- Backend Infrastructure:
+		- Responsible for the overall server design and implementation using Axum.
+		- Builds REST endpoints and ensures concurrent handling of inference requests.
+		 - Implements Server-Sent Events streaming pipeline.
+		 - Works closely with the model integration lead to expose inference APIs.
+	- Frontend and Testing
+		- Develops the minimal web-based chat interface for demonstration.
+		- Implements client-side streaming logic.
+		- Designs test cases to validate all API endpoints.
+		- Conducts performance evaluations and documents results.
 	
 We plan to organize the work into five phases—including setup, vertical slice, feature expansion, test, and documentation/delivery phases:
 ### Phase 1—Setup (10-06 to 10-12)
