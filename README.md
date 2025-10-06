@@ -7,10 +7,10 @@ Most production-grade inference systems today are built using Python-based frame
 
 Our motivation for this project comes from two main observations. Firstly, backends such as vLLM depend heavily on Python. While Python provides rich machine learning libraries and efficient development capabilities, there exist constraints in concurrent and multithread performance, which are crucial for LLM inference services. One critical constraint arises from Python's Global Interpreter Lock (GIL), which allows only one thread to execute bytecode at a time, preventing multiple threads from executing bytecode simultaneously [1]. Before the Python 3.13 version, there was no supported "no-GIL" option, and even in 3.13, the GIL removal is experimental and is not set as the default. Most deployed services still run builds where the GIL is enabled [2]. While CUDA kernels and C++ extensions can release the GIL during heavy compute, the surrounding Python environment can still become a bottleneck under multi-user, real-time situation. Additionally, there are measurements that show CPython generally runs slower than other languages, such as Rust, due to interpreter and runtime overhead [3]. Overall, Python-based inference stacks often face slower execution speed and concurrency performance issue, which can affect the latency of the system.
 
-Secondly, Python's memory management can be a problem in long-running services. Objects are freed only when nothing references them, which makes it easy to keep them alive by mistake—common cases include global caches or descriptors. For example, an empirical study of 671 open-source Python projects identified eight common memory leak patterns [4]. In practice, services that run continuously may accumulate leaked memory until out-of-memory crashes. Also, Python's dynamic typing adds another risk: many mistakes, including wrong attribute names, mixing types. only show up at runtime. This increases the chance of bugs slipping into production, making the framework error-prone. As a result, managing stability and memory efficiency in large, continuously running Python services can become a great challenge.
+Secondly, Python's memory management can be a problem in long-running services. Objects are freed only when nothing references them, which makes it easy to keep them alive by mistake—common cases include global caches or descriptors. For example, an empirical study of 671 open-source Python projects identified eight common memory leak patterns [4]. In practice, services that run continuously may accumulate leaked memory until out-of-memory crashes. Also, Python's dynamic typing adds another risk: many mistakes (such as wrong attribute names, mixing types) only show up at runtime. This increases the chance of bugs slipping into production, making the framework error-prone. As a result, managing stability and memory efficiency in large, continuously running Python services can become a great challenge.
 
 
-To address these two limitations, we propose building an LLM inference service with Rust. Rust works without GIL, so CPU-bound tasks can run in parallel across cores, and its async ecosystem, such as Tokio, gives efficient, non-blocking I/O for token-streaming workloads. Moreover, Rust's strict ownership and lifetime system ensures static and safe memory management, preventing memory leaks or race conditions. Rust enforces deterministic deallocation of space once an object goes out of scope, reducing the risk of slow leaks and late runtime bugs in long-running services. Rust also interoperates well with existing kernels and libraries such as CUDA or crates like candl, so we can reuse proven models while keeping the serving layer fast and safe. Moreover, there is no widely adopted, production-grade Rust system for LLM inference compared to Python/C++; this gap, combined with Rust's strengths in concurrency, latency, and memory safety, motivates us to build a lightweight, reliable LLM inference service that supports real-time streaming outputs, manages multiple models efficiently, and keeps memory usage safe.
+To address these two limitations, we propose building an LLM inference service with Rust. Rust works without GIL, so CPU-bound tasks can run in parallel across cores; Its async ecosystem, such as Tokio, gives efficient, non-blocking I/O for token-streaming workloads. Moreover, Rust's strict ownership and lifetime system ensures static and safe memory management, preventing memory leaks or race conditions. Rust enforces deterministic deallocation of space once an object goes out of scope, reducing the risk of slow leaks and late runtime bugs in long-running services. Rust also interoperates well with existing kernels and libraries such as CUDA or crates like Candle, allowing us to reuse proven model implementations while keeping the serving layer fast and memory-safe. Moreover, there is no widely adopted, production-grade Rust system for LLM inference compared to Python/C++; this gap, combined with Rust's strengths in concurrency, latency, and memory safety, motivates us to build a lightweight, reliable LLM inference service that supports real-time streaming outputs, manages multiple models efficiently, and keeps memory usage safe.
 
 ---
 
@@ -21,6 +21,26 @@ To address these two limitations, we propose building an LLM inference service w
 ---
 
 ## 3. Tentative Plan
+We plan to organize the work into five phases—including setup, vertical slice, feature expansion, test, and documentation/delivery phases:
+Phase 1—Setup (10-06 to 10-12)
+In this phase, we will research more on building an LLM inference service to build a foundational understanding of the Rust ML ecosystem. We will define our system architecture and stack for the project: Candle, Burn, or Mistral.rs for inference, Axum/Tokio for the server, and SSE or WebSockets for streaming. 
+Phase 2—Vertical slice (10-13 to 10-26)
+Our goal in this phase will be to implement a basic backend framework that will serve as the backbone of the inference service. We will put one model online end-to-end, while the tasks include: 
+- Integrate one inference backend (Candle or Mistral.rs).
+- Build a small Axum/Tokio server with one HTTP endpoint and SSE streaming.
+- Add a minimal API endpoint to verify streaming.
+Phase 3—Feature expansion (10-27 to 11-16)
+In this stage, we will make our service functional, which stays responsive under load and supports multiple models safely. Here are the tasks in this stage:
+- Add a model manager to list, load, unload, and select multiple models at runtime.
+- Ensure the service can handle many requests without letting the server overload. Also, keep a limit on how many run at the same time.
+- Keep a stable API that supports streaming. Check the input and return useful error messages.
+Phase 4—Test (11-17 to 12-01)
+This phase will mainly be for testing and improving as we need to make sure the systen works as expected and can be used normally and stably. There are several tasks:
+- Try common paths end-to-end, such as send a prompt, get responses, switch between models, and handle invalid input.
+- Check that the tokens are sent continuously without random stops.
+- Check the response time and performance of the service when multiple users send requests at the same time.
+Phase 5-Documentation and delivery (12-01 to 12-15)
+In this part, we will finish a clear final documentation, prepare presentation slides, and demo video. Once everything is working normally, we will package the code so others can run it easily.
 
 ---
 
