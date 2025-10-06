@@ -22,24 +22,29 @@ To address these two limitations, we propose building an LLM inference service w
 
 ## 3. Tentative Plan
 We plan to organize the work into five phases—including setup, vertical slice, feature expansion, test, and documentation/delivery phases:
-Phase 1—Setup (10-06 to 10-12)
+
+### Phase 1—Setup (10-06 to 10-12)
 In this phase, we will research more on building an LLM inference service to build a foundational understanding of the Rust ML ecosystem. We will define our system architecture and stack for the project: Candle, Burn, or Mistral.rs for inference, Axum/Tokio for the server, and SSE or WebSockets for streaming. 
-Phase 2—Vertical slice (10-13 to 10-26)
+
+### Phase 2—Vertical slice (10-13 to 10-26)
 Our goal in this phase will be to implement a basic backend framework that will serve as the backbone of the inference service. We will put one model online end-to-end, while the tasks include: 
 - Integrate one inference backend (Candle or Mistral.rs).
 - Build a small Axum/Tokio server with one HTTP endpoint and SSE streaming.
 - Add a minimal API endpoint to verify streaming.
-Phase 3—Feature expansion (10-27 to 11-16)
+  
+### Phase 3—Feature expansion (10-27 to 11-16)
 In this stage, we will make our service functional, which stays responsive under load and supports multiple models safely. Here are the tasks in this stage:
 - Add a model manager to list, load, unload, and select multiple models at runtime.
 - Ensure the service can handle many requests without letting the server overload. Also, keep a limit on how many run at the same time.
 - Keep a stable API that supports streaming. Check the input and return useful error messages.
-Phase 4—Test (11-17 to 12-01)
+  
+### Phase 4—Test (11-17 to 12-01)
 This phase will mainly be for testing and improving as we need to make sure the systen works as expected and can be used normally and stably. There are several tasks:
 - Try common paths end-to-end, such as send a prompt, get responses, switch between models, and handle invalid input.
 - Check that the tokens are sent continuously without random stops.
 - Check the response time and performance of the service when multiple users send requests at the same time.
-Phase 5-Documentation and delivery (12-01 to 12-15)
+  
+### Phase 5-Documentation and delivery (12-01 to 12-15)
 In this part, we will finish a clear final documentation, prepare presentation slides, and demo video. Once everything is working normally, we will package the code so others can run it easily.
 
 ---
