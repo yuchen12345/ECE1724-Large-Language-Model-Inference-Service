@@ -34,7 +34,7 @@ The API will use structured JSON formats for both requests and responses to ensu
 ### (4) Streaming Output for Real-Time Interaction
 We will implement Server-Sent Events (SSE) to support real-time token streaming. This allows the client to receive model outputs incrementally, emulating real-time conversational output. This implementation will demonstrate asynchronous request handling and high concurrency performance in Rust.
 ### (5) Minimal Chat Frontend
-We will build a simple web-based interface (e.g., using HTML and JavaScript) too demonstrate the service’s usability. Through the interface, users can send prompts, view streaming responses in real time, and switch between loaded models. This frontend will serve as a functional demo.
+We will build a simple web-based interface (e.g., using HTML and JavaScript) to demonstrate the service’s usability. Through the interface, users can send prompts, view streaming responses in real time, and switch between loaded models. This frontend will serve as a functional demo.
 
 By the end of the project, we will have a complete local Rust LLM inference service that hosts multiple models, provides real-time streaming, and handles multiple users effectively.
 
@@ -42,22 +42,23 @@ By the end of the project, we will have a complete local Rust LLM inference serv
 
 ## 3. Tentative Plan
 The project will be completed collaboratively by two members, with each person focusing on distinct but interdependent technical components to ensure a smooth integration of the entire system. The division of responsibilities is as follows:
-- Team Member A (Yuchen)
+- Team Member A
 	- Focuses on integrating the Candle or Burn library for running LLMs.
 	- Implements the model loading, unloading, and inference execution logic.
 	- Tune performance parameters such as batch size and memory mapping.
 	- Ensures that inference supports both synchronous execution and token streaming.
-- Team Member B (Victoria)
+ 	- Testing
+  		- Designs test cases to validate all API endpoints.
+		- Conducts performance evaluations and documents results.
+- Team Member B
 	- Backend Infrastructure:
 		- Responsible for the overall server design and implementation using Axum.
 		- Builds REST endpoints and ensures concurrent handling of inference requests.
-		 - Implements Server-Sent Events streaming pipeline.
-		 - Works closely with the model integration lead to expose inference APIs.
-	- Frontend and Testing
+		- Implements Server-Sent Events streaming pipeline.
+		- Works closely with the model integration lead to expose inference APIs.
+	- Frontend
 		- Develops the minimal web-based chat interface for demonstration.
 		- Implements client-side streaming logic.
-		- Designs test cases to validate all API endpoints.
-		- Conducts performance evaluations and documents results.
 	
 We plan to organize the work into five phases—including setup, vertical slice, feature expansion, test, and documentation/delivery phases:
 ### Phase 1—Research & Setup (10-06 to 10-12)
