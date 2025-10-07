@@ -29,8 +29,8 @@ Using an async Rust web stack (Axum or Rocket), we will expose a stable API:
 - GET /models — list models and status.
 - POST /load — load a specific model into memory.
 - POST /infer — run inference and return a full response.
-- POST /infer?stream=true — stream the model’s output tokens.
-    The API will use structured JSON formats for both requests and responses to ensure clarity and compatibility with common tools like curl and Postman.
+- POST /infer?stream=true — stream the model’s output tokens.  
+The API will use structured JSON formats for both requests and responses to ensure clarity and compatibility with common tools like curl and Postman.
 ### (4) Streaming Output for Real-Time Interaction
 We will implement Server-Sent Events (SSE) to support real-time token streaming. This allows the client to receive model outputs incrementally, emulating real-time conversational output. This implementation will demonstrate asynchronous request handling and high concurrency performance in Rust.
 ### (5) Minimal Chat Frontend
