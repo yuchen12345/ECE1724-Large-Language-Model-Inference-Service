@@ -29,7 +29,8 @@ Using an async Rust web stack (Axum or Rocket), we will expose a stable API:
 - GET /models — list models and status.
 - POST /load — load a specific model into memory.
 - POST /infer — run inference and return a full response.
-- POST /infer?stream=true — stream the model’s output tokens.  
+- POST /infer?stream=true — stream the model’s output tokens.
+  
 The API will use structured JSON formats for both requests and responses to ensure clarity and compatibility with common tools like curl and Postman.
 ### (4) Streaming Output for Real-Time Interaction
 We will implement Server-Sent Events (SSE) to support real-time token streaming. This allows the client to receive model outputs incrementally, emulating real-time conversational output. This implementation will demonstrate asynchronous request handling and high concurrency performance in Rust.
@@ -82,9 +83,9 @@ This phase will mainly be for testing and improving as we need to make sure the 
 - Check that the tokens are sent continuously without random stops.
 - Check the response time and performance of the service when multiple users send requests at the same time.
 We will evaluate:
-- Response latency and memory usage under different workloads;
-- Concurrency performance with multiple simultaneous clients;
-- Accuracy and stability of model outputs.
+	- Response latency and memory usage under different workloads;
+	- Concurrency performance with multiple simultaneous clients;
+	- Accuracy and stability of model outputs.
   
 ### Phase 5-Documentation and delivery (12-02 to 12-15)
 In this part, we will finish a clear final documentation, prepare presentation slides, and demo video. Once everything is working normally, we will package the code so others can run it easily. 
