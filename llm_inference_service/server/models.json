@@ -1,0 +1,18 @@
+{
+  "models": [
+    {
+      "name": "qwen-1.5b",
+      "path": "models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "architecture": "llama",
+      "max_context": 2048,
+      "temperature": 0.7
+    },
+    {
+      "name": "tinyllama-1.1b",
+      "path": "models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+      "architecture": "llama",
+      "max_context": 4096,
+      "temperature": 0.7
+    }
+  ]
+}

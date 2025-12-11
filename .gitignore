@@ -1,2 +1,4 @@
 llm_inference_service/backend/target/
 llm_inference_service/target/
+llm_inference_service/server/models/
+llm_inference_service/server/target
