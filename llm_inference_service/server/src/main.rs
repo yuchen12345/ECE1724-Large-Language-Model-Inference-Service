@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         .route("/config/reload", post(api::reload_config))
         // Inference
         .route("/inference", post(api::inference))
-        .route("/inference/stream", post(api::inference_stream))
+        // .route("/inference/stream", post(api::inference_stream))
         // Health check
         .route("/health", get(|| async { "OK" }))
         .layer(CorsLayer::permissive())
@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
     tracing::info!("  POST /models/:name/unload - Unload a model");
     tracing::info!("  POST /config/reload       - Reload configuration");
     tracing::info!("  POST /inference           - Non-streaming inference");
-    tracing::info!("  POST /inference/stream    - Streaming inference");
+    // tracing::info!("  POST /inference/stream    - Streaming inference");
     tracing::info!("  GET  /health              - Health check");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

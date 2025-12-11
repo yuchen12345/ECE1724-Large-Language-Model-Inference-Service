@@ -25,7 +25,7 @@ impl Default for AppConfig {
                     name: "qwen-1.5b".to_string(),
                     path: "models/qwen2.5-1.5b-instruct-q4_k_m.gguf".to_string(),
                     architecture: "llama".to_string(),
-                    max_context: 2048, // 减少显存占用
+                    max_context: 2048,
                     temperature: 0.7,
                 },
                 ModelConfig {

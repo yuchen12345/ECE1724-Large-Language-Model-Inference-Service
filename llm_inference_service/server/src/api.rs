@@ -4,16 +4,16 @@ use axum::{
     response::{IntoResponse, Response, Sse},
     Json,
 };
-use futures::stream::Stream;
+// use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::StreamExt;
+// use tokio_stream::wrappers::ReceiverStream;
+// use tokio_stream::StreamExt;
 
 use crate::config::ConfigManager;
-use crate::inference::{InferenceEngine, InferenceRequest, StreamToken};
+use crate::inference::{InferenceEngine, InferenceRequest};
 use crate::model_manager::ModelManager;
 
 pub struct AppState {
@@ -188,65 +188,65 @@ pub async fn inference(
     }
 }
 
-// Streaming inference
-#[derive(Serialize)]
-struct SseToken {
-    token: Option<String>,
-    done: bool,
-    error: Option<String>,
-}
+// // Streaming inference
+// #[derive(Serialize)]
+// struct SseToken {
+//     token: Option<String>,
+//     done: bool,
+//     error: Option<String>,
+// }
 
-pub async fn inference_stream(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<InferenceApiRequest>,
-) -> Response {
-    if !state.model_manager.is_loaded(&req.model) {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!(
-                "Model '{}' is not loaded",
-                req.model
-            ))),
-        )
-            .into_response();
-    }
+// pub async fn inference_stream(
+//     State(state): State<Arc<AppState>>,
+//     Json(req): Json<InferenceApiRequest>,
+// ) -> Response {
+//     if !state.model_manager.is_loaded(&req.model) {
+//         return (
+//             StatusCode::BAD_REQUEST,
+//             Json(ApiResponse::<()>::error(format!(
+//                 "Model '{}' is not loaded",
+//                 req.model
+//             ))),
+//         )
+//             .into_response();
+//     }
 
-    let (tx, rx) = mpsc::channel(100);
+//     let (tx, rx) = mpsc::channel(100);
 
-    let inference_req = InferenceRequest {
-        model: req.model,
-        prompt: req.prompt,
-        max_tokens: req.max_tokens,
-        temperature: req.temperature,
-    };
+//     let inference_req = InferenceRequest {
+//         model: req.model,
+//         prompt: req.prompt,
+//         max_tokens: req.max_tokens,
+//         temperature: req.temperature,
+//     };
 
-    let engine = state.inference_engine.clone();
-    tokio::spawn(async move {
-        if let Err(e) = engine.generate_stream(inference_req, tx.clone()).await {
-            let _ = tx.send(StreamToken::Error(e.to_string())).await;
-        }
-    });
+//     let engine = state.inference_engine.clone();
+//     tokio::spawn(async move {
+//         if let Err(e) = engine.generate_stream(inference_req, tx.clone()).await {
+//             let _ = tx.send(StreamToken::Error(e.to_string())).await;
+//         }
+//     });
 
-    let stream = ReceiverStream::new(rx).map(|token| {
-        let event = match token {
-            StreamToken::Token(t) => SseToken {
-                token: Some(t),
-                done: false,
-                error: None,
-            },
-            StreamToken::Done => SseToken {
-                token: None,
-                done: true,
-                error: None,
-            },
-            StreamToken::Error(e) => SseToken {
-                token: None,
-                done: true,
-                error: Some(e),
-            },
-        };
-        Ok::<_, Infallible>(axum::response::sse::Event::default().json_data(event).unwrap())
-    });
+//     let stream = ReceiverStream::new(rx).map(|token| {
+//         let event = match token {
+//             StreamToken::Token(t) => SseToken {
+//                 token: Some(t),
+//                 done: false,
+//                 error: None,
+//             },
+//             StreamToken::Done => SseToken {
+//                 token: None,
+//                 done: true,
+//                 error: None,
+//             },
+//             StreamToken::Error(e) => SseToken {
+//                 token: None,
+//                 done: true,
+//                 error: Some(e),
+//             },
+//         };
+//         Ok::<_, Infallible>(axum::response::sse::Event::default().json_data(event).unwrap())
+//     });
 
-    Sse::new(stream).into_response()
-}
+//     Sse::new(stream).into_response()
+// }
