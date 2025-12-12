@@ -182,7 +182,7 @@ mod tests {
         let mut tok = Tokenizer::new(model);
         tok.with_pre_tokenizer(Some(Whitespace {}));
 
-        // 显式加 special token，确保 token_to_id("</s>") 能找到
+
         tok.add_special_tokens(&[AddedToken::from("</s>", true)]);
 
         tok
@@ -190,12 +190,11 @@ mod tests {
 
     #[test]
     fn inference_emits_incremental_text_and_stops_on_eos() -> Result<()> {
-        // 让模型每次都生成 </s> (id=1)，一轮就停
+       
         let tokenizer = build_tiny_tokenizer();
         let device = Device::Cpu;
 
-        // 这里假设你的 LoadedModel 结构里至少有 tokenizer/device/model 这几个字段
-        // 如果字段名一致，直接可编译；如果不一致，你按你项目里的字段名改一下即可。
+
         let mut loaded_model = LoadedModel {
             tokenizer,
             device,
@@ -203,7 +202,7 @@ mod tests {
                 vocab_size: 3,
                 next_token: 1,
             }),
-            // 其他字段如果有（比如 dtype / config / etc），按你的结构补默认值
+
         };
 
         let mut out = String::new();
@@ -218,7 +217,6 @@ mod tests {
             out.push_str(&delta);
         })?;
 
-        // 关键断言：callback 收到增量，并且包含 </s>
         assert!(!out.is_empty());
         assert!(out.contains("</s>"));
 
