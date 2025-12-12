@@ -1,0 +1,22 @@
+# config.toml
+
+[models.phi]
+arch = "phi"
+repo = "TheBloke/phi-2-GGUF"
+file = "phi-2.Q4_K_M.gguf"
+tokenizer_repo = "microsoft/phi-2"
+tokenizer_file = "tokenizer.json"
+
+[models.mistral]
+arch = "mistral"
+repo = "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
+file = "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+tokenizer_repo = "mistralai/Mistral-7B-Instruct-v0.2"
+tokenizer_file = "tokenizer.json"
+
+[models.llama3]
+arch = "llama3"
+repo = "NousResearch/Meta-Llama-3-8B-Instruct-GGUF"
+file = "Meta-Llama-3-8B-Instruct-Q4_K_M.gguf"
+tokenizer_repo = "NousResearch/Meta-Llama-3-8B-Instruct"
+tokenizer_file = "tokenizer.json"

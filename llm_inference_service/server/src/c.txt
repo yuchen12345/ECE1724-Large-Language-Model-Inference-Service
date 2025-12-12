@@ -1,7 +1,0 @@
-$env:CUDA_COMPUTE_CAP="89"
-
-curl.exe -X POST http://localhost:8080/models/tinyllama-1.1b/load
-
-curl.exe -X POST http://localhost:8080/inference `
-  -H "Content-Type: application/json" `
-  --data-binary '@body.json'

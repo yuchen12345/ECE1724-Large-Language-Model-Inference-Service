@@ -2,11 +2,9 @@
 name = "llm_inference_service"
 version = "0.1.0"
 edition = "2024"
+default-run = "llm_inference_service"
 
 [dependencies]
-candle-core = { version = "0.8.2", features = ["cuda"] }
-candle-nn = { version = "0.8.2", features = ["cuda"] }
-candle-transformers = { version = "0.8.2", features = ["cuda"] }
 hf-hub = "0.4.1"
 tokenizers = "0.21.0"
 anyhow = "1.0"
@@ -16,4 +14,15 @@ axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 tower-http = { version = "0.5", features = ["cors"] }
+config = "0.15.19"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+candle-core = { version = "0.8.2", features = ["cuda"] }
+candle-nn = { version = "0.8.2", features = ["cuda"] }
+candle-transformers = { version = "0.8.2", features = ["cuda"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8.2", features = ["metal"] }
+candle-nn = { version = "0.8.2", features = ["metal"] }
+candle-transformers = { version = "0.8.2", features = ["metal"] }
 
