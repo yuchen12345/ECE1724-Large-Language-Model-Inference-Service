@@ -1,2 +1,3 @@
 llm_inference_service/backend/target/
 llm_inference_service/backend/Cargo.lock
+llm_inference_service/frontend/target/

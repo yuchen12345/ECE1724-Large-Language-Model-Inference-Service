@@ -1,43 +1,41 @@
-mod model;
-mod infer;
-mod template;
 mod config;
+mod infer;
+mod model;
+mod template;
 
 // import standard library
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::{Arc, Mutex as StdMutex}, 
-    process::Command,
     path::PathBuf,
+    process::Command,
+    sync::{Arc, Mutex as StdMutex},
 };
 // import Axum
 use axum::{
-    extract::State,
-    routing::{get, post},
-    response::sse::{Event, Sse},
     Json, Router,
+    extract::State,
+    response::sse::{Event, KeepAlive, Sse},
+    routing::{get, post},
 };
 // import serde for serializing and deserializing
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 // import tokio for asynchronous runtime handling
 use tokio::{
-    sync::{mpsc, Mutex as TokioMutex, Semaphore},
+    sync::{Mutex as TokioMutex, Semaphore, mpsc},
     task,
 };
 // import tokio_stream for SSE
-use tokio_stream::{
-    wrappers::ReceiverStream,
-    StreamExt,
-};
-use tower_http::cors::{Any, CorsLayer}; // CORS
-use hf_hub::{api::sync::Api, Repo, RepoType}; // Hugging face
+use hf_hub::{Repo, RepoType, api::sync::Api};
+use tokio_stream::{StreamExt, wrappers::ReceiverStream};
+use tower_http::cors::{Any, CorsLayer}; // CORS // Hugging face
 
 // Internal modules
-use model::LoadedModel;
-use infer::{run_inference, InferenceParams};
-use template::apply_chat_template;
 use config::Settings;
+use infer::{InferenceParams, run_inference};
+use model::LoadedModel;
+use template::apply_chat_template;
 
 // Calculate how much VRAM the GPU has (in order to determine if unload model)
 fn detect_vram_mb() -> usize {
@@ -52,17 +50,24 @@ fn detect_vram_mb() -> usize {
             if let Some(line) = stdout.lines().next() {
                 if let Ok(total_mb) = line.trim().parse::<usize>() {
                     // Leave 1GB for system overhead
-                    let safe_limit = total_mb.saturating_sub(1024); 
-                    println!("GPU VRAM: {} MB. Using safe limit: {} MB", total_mb, safe_limit);
+                    let safe_limit = total_mb.saturating_sub(1024);
+                    println!(
+                        "GPU VRAM: {} MB. Using safe limit: {} MB",
+                        total_mb, safe_limit
+                    );
                     return safe_limit;
                 }
             }
         }
         // For machine without NVIDIA drivers
-        _ => { println!("VRAM detection failed. Using default."); }
+        _ => {
+            println!("VRAM detection failed. Using default.");
+        }
     }
     #[cfg(target_os = "macos")]
-    { return 6976; } // Default for Mac
+    {
+        return 6976;
+    } // Default for Mac
     6976 // Default: 8000 - 1024(1G)
 }
 
@@ -75,15 +80,15 @@ fn get_model_file_info(name: &str, conf: &config::ModelConfig) -> anyhow::Result
     // This .get() call will download the file if not present, or return path if cached.
     println!("Checking file for '{}'", name);
     let path = repo.get(&conf.file)?;
-    
+
     // Read file size
     let metadata = std::fs::metadata(&path)?;
     let size_bytes = metadata.len();
     let size_mb = (size_bytes / 1024 / 1024) as usize;
-    
+
     // Add 500MB buffer for overhead
-    let effective_mb = size_mb + 500; 
-    
+    let effective_mb = size_mb + 500;
+
     Ok((path, effective_mb))
 }
 
@@ -93,9 +98,9 @@ struct AppState {
     models: Arc<TokioMutex<HashMap<String, Option<Arc<StdMutex<LoadedModel>>>>>>,
     active_model: Arc<TokioMutex<String>>,
     semaphore: Arc<Semaphore>,
-    model_sizes: Arc<TokioMutex<HashMap<String, usize>>>,// Track VRAM size of each model
+    model_sizes: Arc<TokioMutex<HashMap<String, usize>>>, // Track VRAM size of each model
     vram_limit: usize,
-    settings: Arc<Settings>,// Global settings
+    settings: Arc<Settings>, // Global settings
 }
 // Response structures in JSON
 #[derive(Serialize)]
@@ -110,11 +115,17 @@ struct ModelList {
     vram_usage: String,
 }
 #[derive(Deserialize)]
-struct SetModelRequest { name: String }
+struct SetModelRequest {
+    name: String,
+}
 #[derive(Deserialize)]
-struct LoadModelRequest { name: String }
+struct LoadModelRequest {
+    name: String,
+}
 #[derive(Deserialize)]
-struct UnloadModelRequest { name: String }
+struct UnloadModelRequest {
+    name: String,
+}
 #[derive(Deserialize)]
 struct InferRequest {
     prompt: String,
@@ -132,10 +143,18 @@ struct ApiResponse<T> {
 }
 impl<T> ApiResponse<T> {
     fn ok(data: T) -> Json<Self> {
-        Json(Self { status: "ok".to_string(), data: Some(data), message: None })
+        Json(Self {
+            status: "ok".to_string(),
+            data: Some(data),
+            message: None,
+        })
     }
     fn error(msg: impl Into<String>) -> Json<Self> {
-        Json(Self { status: "error".to_string(), data: None, message: Some(msg.into()) })
+        Json(Self {
+            status: "error".to_string(),
+            data: None,
+            message: Some(msg.into()),
+        })
     }
 }
 
@@ -158,12 +177,12 @@ async fn load_model_handler(
     }
     drop(models_guard); // Release lock so other requests are not blocked
 
-   
     // Download and measure, run in a blocking task to avoid block other requests
     let name_clone = req.name.clone();
-    let file_info_result = task::spawn_blocking(move || {
-        get_model_file_info(&name_clone, &model_conf)
-    }).await.unwrap();
+    let file_info_result =
+        task::spawn_blocking(move || get_model_file_info(&name_clone, &model_conf))
+            .await
+            .unwrap();
 
     let (_path, required_mb) = match file_info_result {
         Ok(info) => info,
@@ -173,7 +192,7 @@ async fn load_model_handler(
     // VRAM Check
     let mut models = state.models.lock().await;
     let mut sizes = state.model_sizes.lock().await;
-    
+
     // Update the size record with actual data
     sizes.insert(req.name.clone(), required_mb);
     // Calculate current total VRAM usage
@@ -183,7 +202,10 @@ async fn load_model_handler(
             current_usage_mb += sizes.get(name).unwrap_or(&0);
         }
     }
-    println!("VRAM Check: Current={}MB, Needed={}MB, Limit={}MB", current_usage_mb, required_mb, state.vram_limit);
+    println!(
+        "VRAM Check: Current={}MB, Needed={}MB, Limit={}MB",
+        current_usage_mb, required_mb, state.vram_limit
+    );
 
     // Auto unload old models if no enough VRAM
     while current_usage_mb + required_mb > state.vram_limit {
@@ -196,9 +218,12 @@ async fn load_model_handler(
         }
         // No enough VRAM space for model to be load
         if victim.is_empty() {
-             return ApiResponse::error(format!("Model {} ({}MB) is too large for VRAM limit", req.name, required_mb));
+            return ApiResponse::error(format!(
+                "Model {} ({}MB) is too large for VRAM limit",
+                req.name, required_mb
+            ));
         }
-        
+
         println!("Auto-unloading: {} to free space", victim);
         if let Some(slot) = models.get_mut(&victim) {
             *slot = None; // Free VRAM
@@ -209,13 +234,13 @@ async fn load_model_handler(
     // Release locks before the heavy loading to keep the server responsive
     drop(models);
     drop(sizes);
-    
+
     let name_final = req.name.clone();
     //println!("Loading weights for {}", name_final);
     // Actual loading
-    let load_result = task::spawn_blocking(move || {
-        LoadedModel::load(&name_final)
-    }).await.unwrap();
+    let load_result = task::spawn_blocking(move || LoadedModel::load(&name_final))
+        .await
+        .unwrap();
     match load_result {
         Ok(model) => {
             // Re-acquire lock for newly loaded model.
@@ -226,8 +251,8 @@ async fn load_model_handler(
             *active = req.name.clone();
             println!("Model {} loaded successfully.", req.name);
             ApiResponse::ok(format!("Model '{}' loaded.", req.name))
-        },
-        Err(e) => ApiResponse::error(format!("Failed to load: {}", e))
+        }
+        Err(e) => ApiResponse::error(format!("Failed to load: {}", e)),
     }
 }
 
@@ -236,17 +261,22 @@ async fn load_model_handler(
 async fn list_models(State(state): State<AppState>) -> Json<ModelList> {
     let models = state.models.lock().await;
     let sizes = state.model_sizes.lock().await;
-    let active = state.active_model.lock().await;  
+    let active = state.active_model.lock().await;
     let mut result = HashMap::new();
     let mut used = 0;
     for (name, instance) in models.iter() {
         let is_loaded = instance.is_some();
         let size = *sizes.get(name).unwrap_or(&0);
-        if is_loaded { used += size; }   
-        result.insert(name.clone(), ModelStatus { 
-            loaded: is_loaded,
-            size_mb: size 
-        });
+        if is_loaded {
+            used += size;
+        }
+        result.insert(
+            name.clone(),
+            ModelStatus {
+                loaded: is_loaded,
+                size_mb: size,
+            },
+        );
     }
     Json(ModelList {
         models: result,
@@ -257,22 +287,32 @@ async fn list_models(State(state): State<AppState>) -> Json<ModelList> {
 
 // POST /infer
 // Return full response at once
-async fn infer_handler(State(state): State<AppState>, Json(req): Json<InferRequest>) -> Json<ApiResponse<String>> {
+async fn infer_handler(
+    State(state): State<AppState>,
+    Json(req): Json<InferRequest>,
+) -> Json<ApiResponse<String>> {
     // Concurrency Control
     let _permit = state.semaphore.acquire().await.unwrap();
     // Check if there is active model
     let active = state.active_model.lock().await.clone();
-    if active.is_empty() { return ApiResponse::error("Active model not selected."); }
+    if active.is_empty() {
+        return ApiResponse::error("Active model not selected.");
+    }
     let models = state.models.lock().await;
     // Clone the Arc to the model
     let model_arc = match models.get(&active) {
         Some(Some(m)) => m.clone(),
         _ => return ApiResponse::error("Model not found or not loaded."),
     };
-    drop(models);// Release lock
+    drop(models); // Release lock
     // Apply template to input so that it match model's standard input
     let prompt = apply_chat_template(&active, &req.prompt);
-    let params = InferenceParams { temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, seed: req.seed };
+    let params = InferenceParams {
+        temperature: req.temperature,
+        top_p: req.top_p,
+        max_tokens: req.max_tokens,
+        seed: req.seed,
+    };
     // Run inference
     let result = task::spawn_blocking(move || {
         let mut model = model_arc.lock().unwrap();
@@ -280,13 +320,18 @@ async fn infer_handler(State(state): State<AppState>, Json(req): Json<InferReque
         // The callback appends token to string buffer
         let _ = run_inference(&mut *model, &prompt, params, |t| output.push_str(&t));
         output
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
     ApiResponse::ok(format!("[Model: {}] {}", active, result))
 }
 
 // POST /infer_stream
 // Return response using SSE which means token by token
-async fn infer_stream_handler(State(state): State<AppState>, Json(req): Json<InferRequest>) -> Sse<impl tokio_stream::Stream<Item = Result<Event, std::convert::Infallible>>> {
+async fn infer_stream_handler(
+    State(state): State<AppState>,
+    Json(req): Json<InferRequest>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, std::convert::Infallible>>> {
     // Channel for tokens
     let (tx, rx) = mpsc::channel(100);
     task::spawn(async move {
@@ -294,36 +339,59 @@ async fn infer_stream_handler(State(state): State<AppState>, Json(req): Json<Inf
         let permit = state.semaphore.clone().acquire_owned().await.unwrap();
         let active = state.active_model.lock().await.clone();
         // Check if there is active model
-        if active.is_empty() { let _ = tx.send("Active model not selected.".into()).await; return; }
+        if active.is_empty() {
+            let _ = tx.send("Active model not selected.".into()).await;
+            return;
+        }
         let models = state.models.lock().await;
         let model_arc = match models.get(&active) {
             Some(Some(m)) => m.clone(),
-            _ => { let _ = tx.send("Model not found or not loaded.".into()).await; return; }
+            _ => {
+                let _ = tx.send("Model not found or not loaded.".into()).await;
+                return;
+            }
         };
-        drop(models);// Release lock
+        drop(models); // Release lock
         let _permit = permit;
         let prompt = apply_chat_template(&active, &req.prompt);
-        let params = InferenceParams { temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, seed: req.seed };
+        let params = InferenceParams {
+            temperature: req.temperature,
+            top_p: req.top_p,
+            max_tokens: req.max_tokens,
+            seed: req.seed,
+        };
         let tx_clone = tx.clone();
         // Run inference
         task::spawn_blocking(move || {
             let _ = tx_clone.blocking_send(format!("[MODEL: {}]", active));
             let mut model = model_arc.lock().unwrap();
-            // Send each generated token to the channel immediately
-            let res = run_inference(&mut *model, &prompt, params, |t| { let _ = tx_clone.blocking_send(t); });
-            if let Err(e) = res { let _ = tx_clone.blocking_send(format!("[ERROR] {}", e)); }
+            let res = run_inference(&mut *model, &prompt, params, |t| {
+                let json_msg = json!({ "text": t }).to_string();
+                let _ = tx_clone.blocking_send(json_msg);
+            });
+            if let Err(e) = res {
+                let _ = tx_clone.blocking_send(format!("[ERROR] {}", e));
+            }
             let _ = tx_clone.blocking_send("[DONE]".to_string());
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
     });
     // Convert the channel receiver into a Stream compatible with Axum SSE
     Sse::new(ReceiverStream::new(rx).map(|m| Ok(Event::default().data(m))))
+        .keep_alive(KeepAlive::default())
 }
 
 //POST /set_model
 // Set active model for one of loaded models
-async fn set_model(State(state): State<AppState>, Json(req): Json<SetModelRequest>) -> Json<ApiResponse<String>> {
+async fn set_model(
+    State(state): State<AppState>,
+    Json(req): Json<SetModelRequest>,
+) -> Json<ApiResponse<String>> {
     let models = state.models.lock().await;
-    if !models.contains_key(&req.name) { return ApiResponse::error("Model not found."); }
+    if !models.contains_key(&req.name) {
+        return ApiResponse::error("Model not found.");
+    }
     if models.get(&req.name).unwrap().is_some() {
         let mut active = state.active_model.lock().await;
         *active = req.name.clone();
@@ -334,13 +402,18 @@ async fn set_model(State(state): State<AppState>, Json(req): Json<SetModelReques
 
 //POST /unload_model
 // Drop model to free VRAM
-async fn unload_model_handler(State(state): State<AppState>, Json(req): Json<UnloadModelRequest>) -> Json<ApiResponse<String>> {
+async fn unload_model_handler(
+    State(state): State<AppState>,
+    Json(req): Json<UnloadModelRequest>,
+) -> Json<ApiResponse<String>> {
     let mut models = state.models.lock().await;
     if let Some(slot) = models.get_mut(&req.name) {
         if slot.is_some() {
             *slot = None;
             let mut active = state.active_model.lock().await;
-            if *active == req.name { *active = "".into(); }
+            if *active == req.name {
+                *active = "".into();
+            }
             return ApiResponse::ok(format!("Unload model {}", req.name));
         }
     }
@@ -359,7 +432,7 @@ async fn main() {
     for (name, _) in settings.models {
         model_map.insert(name.clone(), None);
         // Initial size is 0 until we download/measure it
-        size_map.insert(name, 0); 
+        size_map.insert(name, 0);
     }
     //println!("Loaded config: {:?} models found.", model_map.len());
 
@@ -378,20 +451,24 @@ async fn main() {
     // Routers
     let app = Router::new()
         .route("/health", get(|| async { "OK" }))
-        .route("/models", get(list_models))         
+        .route("/models", get(list_models))
         .route("/set_model", post(set_model))
         .route("/load_model", post(load_model_handler))
         .route("/unload_model", post(unload_model_handler))
         .route("/infer", post(infer_handler))
         .route("/infer_stream", post(infer_stream_handler))
         .with_state(state)
-        .layer(CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any)); // Enable CORS
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        ); // Enable CORS
 
     // Start server
     let addr = SocketAddr::from(([127, 0, 0, 1], 8081));
     println!("Server running at http://{}", addr);
-    axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app).await.unwrap();
+    axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app)
+        .await
+        .unwrap();
 }
