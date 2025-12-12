@@ -134,6 +134,11 @@ input[type="range"] {
     border-bottom: 1px solid var(--border-color);
 }
 
+.message .content {
+    white-space: pre-wrap; 
+    word-wrap: break-word; 
+}
+
 .message.ai { background-color: var(--chat-ai); }
 .message.user { background-color: var(--chat-user); }
 
@@ -224,3 +229,51 @@ textarea:focus { outline: none; border-color: var(--accent-color); }
     animation: spin 1s linear infinite;
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    margin-left: 5px;
+    color: #888;
+}
+
+.tooltip-container:hover {
+    color: #fff;
+}
+
+.tooltip-text {
+    visibility: hidden;
+    width: 220px;   
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    border: 1px solid #555;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    position: absolute;
+    z-index: 10;
+    bottom: 125%;
+    left: -10px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
