@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h2>LLM Chat</h2>
+        <button id="theme-toggle">
+        <span id="theme-icon"></span> Switch Theme
+        </button>
+
+        <div class="control-group">
+            <label>Models</label>
+            <select id="model-select">
+                <option value="" disabled selected>Loading...</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Temperature <span id="temp-val" class="value-display">0.7</span></label>
+            <input type="range" id="temperature" min="0.1" max="2.0" step="0.1" value="0.7">
+        </div>
+
+        <div class="control-group">
+            <label>Top P <span id="topp-val" class="value-display">0.9</span></label>
+            <input type="range" id="top-p" min="0.1" max="1.0" step="0.05" value="0.9">
+        </div>
+
+        <div class="control-group">
+            <label>Max Tokens</label>
+            <input type="number" id="max-tokens" value="200">
+        </div>
+
+        <div class="control-group">
+            <label>Seed (Optional)</label>
+            <input type="number" id="seed" placeholder="Random">
+        </div>
+
+        <div id="server-status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Checking server...</span>
+        </div>
+    </div>
+
+    <div id="main-chat">
+        <div id="chat-history">
+            <div class="message ai">
+                <div class="avatar">AI</div>
+                <div class="content">I am your local AI. Load a model and say hi!</div>
+            </div>
+        </div>
+
+        <div id="input-area">
+            <div class="input-container">
+                <textarea id="user-input" placeholder="Send a message..."></textarea>
+                <button id="send-btn">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <h3 id="loading-text" style="margin-top: 20px;">Loading Model...</h3>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
