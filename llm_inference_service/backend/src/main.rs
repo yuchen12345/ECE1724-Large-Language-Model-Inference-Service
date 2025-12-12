@@ -1,10 +1,9 @@
 mod model;
 mod infer;
 mod template;
-// Import config module
-#[path = "config.rs"]
 mod config;
 
+// import standard library
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -12,72 +11,77 @@ use std::{
     process::Command,
     path::PathBuf,
 };
+// import Axum
 use axum::{
     extract::State,
     routing::{get, post},
     response::sse::{Event, Sse},
     Json, Router,
 };
+// import serde for serializing and deserializing
 use serde::{Deserialize, Serialize};
+// import tokio for asynchronous runtime handling
 use tokio::{
     sync::{mpsc, Mutex as TokioMutex, Semaphore},
     task,
 };
+// import tokio_stream for SSE
 use tokio_stream::{
     wrappers::ReceiverStream,
     StreamExt,
 };
-use tower_http::cors::{Any, CorsLayer};
-use hf_hub::{api::sync::Api, Repo, RepoType}; // Need hf_hub to resolve paths
+use tower_http::cors::{Any, CorsLayer}; // CORS
+use hf_hub::{api::sync::Api, Repo, RepoType}; // Hugging face
 
+// Internal modules
 use model::LoadedModel;
 use infer::{run_inference, InferenceParams};
 use template::apply_chat_template;
 use config::Settings;
 
-// --- Helper: Auto-detect VRAM ---
+// Calculate how much VRAM the GPU has (in order to determine if unload model)
 fn detect_vram_mb() -> usize {
-    println!("Detecting GPU VRAM...");
+    // Run 'nvidia-smi' command
     let output = Command::new("nvidia-smi")
         .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
         .output();
-
     match output {
         Ok(o) if o.status.success() => {
+            // Parse output string
             let stdout = String::from_utf8_lossy(&o.stdout);
             if let Some(line) = stdout.lines().next() {
                 if let Ok(total_mb) = line.trim().parse::<usize>() {
-                    // Safety Buffer: Leave 1GB for system/desktop overhead
+                    // Leave 1GB for system overhead
                     let safe_limit = total_mb.saturating_sub(1024); 
-                    println!("Detected GPU VRAM: {} MB. Using safe limit: {} MB", total_mb, safe_limit);
+                    println!("GPU VRAM: {} MB. Using safe limit: {} MB", total_mb, safe_limit);
                     return safe_limit;
                 }
             }
         }
+        // For machine without NVIDIA drivers
         _ => { println!("VRAM detection failed. Using default."); }
     }
-
     #[cfg(target_os = "macos")]
-    { return 12000; } // Default for Mac
-    
-    8000 // Default fallback
+    { return 6976; } // Default for Mac
+    6976 // Default: 8000 - 1024(1G)
 }
 
-// --- Helper: Fetch File Size without loading model ---
-// Returns (file_path, size_in_mb)
+// Check the model file's actual size on disk so that we know
+// if we can actually load it
+// Return (file path, size in mb)
 fn get_model_file_info(name: &str, conf: &config::ModelConfig) -> anyhow::Result<(PathBuf, usize)> {
     let api = Api::new()?;
     let repo = api.repo(Repo::new(conf.repo.clone(), RepoType::Model));
     // This .get() call will download the file if not present, or return path if cached.
-    // We do this in spawn_blocking, so it's fine.
-    println!("Checking file for '{}'... (This may download if not cached)", name);
+    println!("Checking file for '{}'", name);
     let path = repo.get(&conf.file)?;
     
+    // Read file size
     let metadata = std::fs::metadata(&path)?;
     let size_bytes = metadata.len();
     let size_mb = (size_bytes / 1024 / 1024) as usize;
     
-    // Add 500MB buffer for context window (KV Cache) overhead
+    // Add 500MB buffer for overhead
     let effective_mb = size_mb + 500; 
     
     Ok((path, effective_mb))
@@ -89,13 +93,11 @@ struct AppState {
     models: Arc<TokioMutex<HashMap<String, Option<Arc<StdMutex<LoadedModel>>>>>>,
     active_model: Arc<TokioMutex<String>>,
     semaphore: Arc<Semaphore>,
-    // Mutex now, because we update sizes dynamically after download
-    model_sizes: Arc<TokioMutex<HashMap<String, usize>>>,
-    vram_limit_mb: usize,
-    // Store config to look up repo info
-    settings: Arc<Settings>,
+    model_sizes: Arc<TokioMutex<HashMap<String, usize>>>,// Track VRAM size of each model
+    vram_limit: usize,
+    settings: Arc<Settings>,// Global settings
 }
-
+// Response structures in JSON
 #[derive(Serialize)]
 struct ModelStatus {
     loaded: bool,
@@ -121,6 +123,7 @@ struct InferRequest {
     max_tokens: Option<usize>,
     seed: Option<u64>,
 }
+// Standardized API response
 #[derive(Serialize)]
 struct ApiResponse<T> {
     status: String,
@@ -136,29 +139,27 @@ impl<T> ApiResponse<T> {
     }
 }
 
-// --- Handlers ---
-
+// POST /load_model
 async fn load_model_handler(
     State(state): State<AppState>,
     Json(req): Json<LoadModelRequest>,
 ) -> Json<ApiResponse<String>> {
-    // 1. Check if model exists in config
+    // Check if model exists in config
     let model_conf = match state.settings.models.get(&req.name) {
         Some(c) => c.clone(),
         None => return ApiResponse::error(format!("Model '{}' not found in config.", req.name)),
     };
-
-    // 2. Check if already loaded
+    // Check if model already loaded
     let models_guard = state.models.lock().await;
     if models_guard.get(&req.name).unwrap().is_some() {
         let mut active = state.active_model.lock().await;
         *active = req.name.clone();
         return ApiResponse::ok(format!("Model '{}' is already loaded.", req.name));
     }
-    drop(models_guard); // Release lock while downloading
+    drop(models_guard); // Release lock so other requests are not blocked
 
-    // 3. Pre-flight: Download & Measure Size (Heavy I/O)
-    // We do this BEFORE locking the global model map to avoid blocking other requests
+   
+    // Download and measure, run in a blocking task to avoid block other requests
     let name_clone = req.name.clone();
     let file_info_result = task::spawn_blocking(move || {
         get_model_file_info(&name_clone, &model_conf)
@@ -169,24 +170,23 @@ async fn load_model_handler(
         Err(e) => return ApiResponse::error(format!("Failed to fetch model info: {}", e)),
     };
 
-    // 4. VRAM Budget Check (Critical Section)
+    // VRAM Check
     let mut models = state.models.lock().await;
     let mut sizes = state.model_sizes.lock().await;
     
     // Update the size record with actual data
     sizes.insert(req.name.clone(), required_mb);
-
+    // Calculate current total VRAM usage
     let mut current_usage_mb: usize = 0;
     for (name, instance) in models.iter() {
         if instance.is_some() {
             current_usage_mb += sizes.get(name).unwrap_or(&0);
         }
     }
+    println!("VRAM Check: Current={}MB, Needed={}MB, Limit={}MB", current_usage_mb, required_mb, state.vram_limit);
 
-    println!("VRAM Check: Current={}MB, Needed={}MB, Limit={}MB", current_usage_mb, required_mb, state.vram_limit_mb);
-
-    // Auto-unload loop
-    while current_usage_mb + required_mb > state.vram_limit_mb {
+    // Auto unload old models if no enough VRAM
+    while current_usage_mb + required_mb > state.vram_limit {
         let mut victim = String::new();
         for (name, instance) in models.iter() {
             if instance.is_some() {
@@ -194,36 +194,36 @@ async fn load_model_handler(
                 break;
             }
         }
+        // No enough VRAM space for model to be load
         if victim.is_empty() {
              return ApiResponse::error(format!("Model {} ({}MB) is too large for VRAM limit", req.name, required_mb));
         }
         
         println!("Auto-unloading: {} to free space", victim);
         if let Some(slot) = models.get_mut(&victim) {
-            *slot = None; // Drop (Free VRAM)
+            *slot = None; // Free VRAM
         }
         current_usage_mb -= sizes.get(&victim).unwrap_or(&0);
     }
 
-    // 5. Load the Model (Heavy Compute)
-    drop(models); // Release map lock
+    // Release locks before the heavy loading to keep the server responsive
+    drop(models);
     drop(sizes);
     
     let name_final = req.name.clone();
-    println!("Loading weights for {}...", name_final);
-    
+    //println!("Loading weights for {}", name_final);
+    // Actual loading
     let load_result = task::spawn_blocking(move || {
         LoadedModel::load(&name_final)
     }).await.unwrap();
-
     match load_result {
         Ok(model) => {
+            // Re-acquire lock for newly loaded model.
             let mut models = state.models.lock().await;
             models.insert(req.name.clone(), Some(Arc::new(StdMutex::new(model))));
-            
+            // Set as active model
             let mut active = state.active_model.lock().await;
             *active = req.name.clone();
-            
             println!("Model {} loaded successfully.", req.name);
             ApiResponse::ok(format!("Model '{}' loaded.", req.name))
         },
@@ -231,91 +231,109 @@ async fn load_model_handler(
     }
 }
 
+// GET /models
+// Return a list with all models, including status and VRAM usage
 async fn list_models(State(state): State<AppState>) -> Json<ModelList> {
     let models = state.models.lock().await;
     let sizes = state.model_sizes.lock().await;
-    let active = state.active_model.lock().await;
-    
+    let active = state.active_model.lock().await;  
     let mut result = HashMap::new();
     let mut used = 0;
-
     for (name, instance) in models.iter() {
         let is_loaded = instance.is_some();
         let size = *sizes.get(name).unwrap_or(&0);
-        if is_loaded { used += size; }
-        
+        if is_loaded { used += size; }   
         result.insert(name.clone(), ModelStatus { 
             loaded: is_loaded,
             size_mb: size 
         });
     }
-
     Json(ModelList {
         models: result,
         active: active.clone(),
-        vram_usage: format!("{}/{} MB", used, state.vram_limit_mb),
+        vram_usage: format!("{}/{} MB", used, state.vram_limit),
     })
 }
 
+// POST /infer
+// Return full response at once
 async fn infer_handler(State(state): State<AppState>, Json(req): Json<InferRequest>) -> Json<ApiResponse<String>> {
+    // Concurrency Control
     let _permit = state.semaphore.acquire().await.unwrap();
+    // Check if there is active model
     let active = state.active_model.lock().await.clone();
     if active.is_empty() { return ApiResponse::error("Active model not selected."); }
     let models = state.models.lock().await;
+    // Clone the Arc to the model
     let model_arc = match models.get(&active) {
         Some(Some(m)) => m.clone(),
-        _ => return ApiResponse::error("Active model not found or not loaded."),
+        _ => return ApiResponse::error("Model not found or not loaded."),
     };
-    drop(models);
+    drop(models);// Release lock
+    // Apply template to input so that it match model's standard input
     let prompt = apply_chat_template(&active, &req.prompt);
     let params = InferenceParams { temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, seed: req.seed };
+    // Run inference
     let result = task::spawn_blocking(move || {
         let mut model = model_arc.lock().unwrap();
         let mut output = String::new();
+        // The callback appends token to string buffer
         let _ = run_inference(&mut *model, &prompt, params, |t| output.push_str(&t));
         output
     }).await.unwrap();
     ApiResponse::ok(format!("[Model: {}] {}", active, result))
 }
 
+// POST /infer_stream
+// Return response using SSE which means token by token
 async fn infer_stream_handler(State(state): State<AppState>, Json(req): Json<InferRequest>) -> Sse<impl tokio_stream::Stream<Item = Result<Event, std::convert::Infallible>>> {
+    // Channel for tokens
     let (tx, rx) = mpsc::channel(100);
     task::spawn(async move {
+        // Concurrency Control
         let permit = state.semaphore.clone().acquire_owned().await.unwrap();
         let active = state.active_model.lock().await.clone();
-        if active.is_empty() { let _ = tx.send("[ERROR] No active model".into()).await; return; }
+        // Check if there is active model
+        if active.is_empty() { let _ = tx.send("Active model not selected.".into()).await; return; }
         let models = state.models.lock().await;
         let model_arc = match models.get(&active) {
             Some(Some(m)) => m.clone(),
-            _ => { let _ = tx.send("[ERROR] Model not loaded".into()).await; return; }
+            _ => { let _ = tx.send("Model not found or not loaded.".into()).await; return; }
         };
-        drop(models);
+        drop(models);// Release lock
         let _permit = permit;
         let prompt = apply_chat_template(&active, &req.prompt);
         let params = InferenceParams { temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens, seed: req.seed };
         let tx_clone = tx.clone();
+        // Run inference
         task::spawn_blocking(move || {
             let _ = tx_clone.blocking_send(format!("[MODEL: {}]", active));
             let mut model = model_arc.lock().unwrap();
+            // Send each generated token to the channel immediately
             let res = run_inference(&mut *model, &prompt, params, |t| { let _ = tx_clone.blocking_send(t); });
             if let Err(e) = res { let _ = tx_clone.blocking_send(format!("[ERROR] {}", e)); }
             let _ = tx_clone.blocking_send("[DONE]".to_string());
         }).await.unwrap();
     });
+    // Convert the channel receiver into a Stream compatible with Axum SSE
     Sse::new(ReceiverStream::new(rx).map(|m| Ok(Event::default().data(m))))
 }
 
+//POST /set_model
+// Set active model for one of loaded models
 async fn set_model(State(state): State<AppState>, Json(req): Json<SetModelRequest>) -> Json<ApiResponse<String>> {
     let models = state.models.lock().await;
     if !models.contains_key(&req.name) { return ApiResponse::error("Model not found."); }
     if models.get(&req.name).unwrap().is_some() {
         let mut active = state.active_model.lock().await;
         *active = req.name.clone();
-        return ApiResponse::ok(format!("Switched to {}", req.name));
+        return ApiResponse::ok(format!("Active model switched to {}", req.name));
     }
-    ApiResponse::error(format!("Model {} not loaded. Call /load_model", req.name))
+    ApiResponse::error(format!("Model {} not loaded.", req.name))
 }
 
+//POST /unload_model
+// Drop model to free VRAM
 async fn unload_model_handler(State(state): State<AppState>, Json(req): Json<UnloadModelRequest>) -> Json<ApiResponse<String>> {
     let mut models = state.models.lock().await;
     if let Some(slot) = models.get_mut(&req.name) {
@@ -323,19 +341,18 @@ async fn unload_model_handler(State(state): State<AppState>, Json(req): Json<Unl
             *slot = None;
             let mut active = state.active_model.lock().await;
             if *active == req.name { *active = "".into(); }
-            return ApiResponse::ok(format!("Unloaded {}", req.name));
+            return ApiResponse::ok(format!("Unload model {}", req.name));
         }
     }
-    ApiResponse::error("Model not loaded")
+    ApiResponse::error(format!("Model {} not loaded.", req.name))
 }
 
 #[tokio::main]
 async fn main() {
-    // 1. Load settings (URLs only)
+    // Load settings from config.toml
     let settings = Settings::new().expect("Failed to load config.toml");
     let settings_arc = Arc::new(settings.clone());
-
-    // 2. Initialize Maps
+    // Initialize state maps
     let mut model_map = HashMap::new();
     let mut size_map = HashMap::new();
 
@@ -344,21 +361,21 @@ async fn main() {
         // Initial size is 0 until we download/measure it
         size_map.insert(name, 0); 
     }
+    //println!("Loaded config: {:?} models found.", model_map.len());
 
-    println!("Loaded config: {:?} models found.", model_map.len());
-
-    // 3. Auto-detect VRAM
+    // Auto-detect VRAM
     let auto_vram_limit = detect_vram_mb();
-
+    // Create shared application state
     let state = AppState {
         models: Arc::new(TokioMutex::new(model_map)),
         active_model: Arc::new(TokioMutex::new("".to_string())),
-        semaphore: Arc::new(Semaphore::new(1)),
-        model_sizes: Arc::new(TokioMutex::new(size_map)), // Now dynamic
-        vram_limit_mb: auto_vram_limit,
+        semaphore: Arc::new(Semaphore::new(1)), // Only one allowed for enough VRAM space
+        model_sizes: Arc::new(TokioMutex::new(size_map)),
+        vram_limit: auto_vram_limit,
         settings: settings_arc,
     };
 
+    // Routers
     let app = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/models", get(list_models))         
@@ -368,8 +385,12 @@ async fn main() {
         .route("/infer", post(infer_handler))
         .route("/infer_stream", post(infer_stream_handler))
         .with_state(state)
-        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any));
+        .layer(CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)); // Enable CORS
 
+    // Start server
     let addr = SocketAddr::from(([127, 0, 0, 1], 8081));
     println!("Server running at http://{}", addr);
     axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app).await.unwrap();
