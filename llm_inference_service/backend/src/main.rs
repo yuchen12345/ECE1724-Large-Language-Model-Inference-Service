@@ -148,6 +148,7 @@ struct InferRequest {
     top_p: Option<f64>,
     max_tokens: Option<usize>,
     seed: Option<u64>,
+    system_prompt: Option<String>,
 }
 // Standardized API response
 #[derive(Serialize)]
@@ -337,7 +338,7 @@ async fn infer_handler(
     };
     drop(models); // Release lock
     // Apply template to input so that it match model's standard input
-    let prompt = apply_chat_template(&active, &req.prompt);
+    let prompt = apply_chat_template(&active, &req.prompt, req.system_prompt.clone());
     let params = InferenceParams {
         temperature: req.temperature,
         top_p: req.top_p,
@@ -393,7 +394,7 @@ async fn infer_stream_handler(State(state): State<AppState>, Json(req): Json<Inf
         drop(models_guard);// Release lock
         
         let _permit = permit;
-        let prompt = apply_chat_template(&active, &req.prompt);
+        let prompt = apply_chat_template(&active, &req.prompt, req.system_prompt.clone());
         let params = InferenceParams { 
             temperature: req.temperature, 
             top_p: req.top_p, 

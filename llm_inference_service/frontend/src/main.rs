@@ -8,6 +8,7 @@ use web_sys::AbortController;
 
 const API_BASE: &str = "http://127.0.0.1:8081";
 
+// --- Data Structures ---
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct ChatMessage {
     id: u64, // id for each chat message
@@ -38,6 +39,7 @@ struct InferRequest {
     top_p: f64,
     max_tokens: usize,
     seed: Option<u64>,
+    system_prompt: Option<String>,
 }
 
 #[component]
@@ -93,6 +95,7 @@ fn App() -> impl IntoView {
     let (top_p, set_top_p) = create_signal(0.9);
     let (max_tokens, set_max_tokens) = create_signal(200);
     let (seed, set_seed) = create_signal::<Option<u64>>(None);
+    let (system_prompt, set_system_prompt) = create_signal("".to_string());
     // control chat history window
     let chat_history_ref = create_node_ref::<html::Div>();
 
@@ -197,12 +200,14 @@ fn App() -> impl IntoView {
         
         spawn_local(async move {
             // inference parameters
+            let sys_prompt_input = system_prompt.get_untracked().trim().to_string();
             let payload = InferRequest {
                 prompt: text,
                 temperature: temperature.get_untracked(),
                 top_p: top_p.get_untracked(),
                 max_tokens: max_tokens.get_untracked(),
                 seed: seed.get_untracked(),
+                system_prompt: if sys_prompt_input.is_empty() { None } else { Some(sys_prompt_input) },
             };
 
             let controller = AbortController::new().ok();
@@ -299,19 +304,19 @@ fn App() -> impl IntoView {
 
     view! {
         <div id="sidebar">
-            <h2>"LLM chat"</h2>
+            <h2>"LLM Chat"</h2>
+            
+            // Model selection
             <div class="control-group">
-                <label>"Models"</label>
-                // Model selection
+                <label>"Model"</label>
                 <select 
                     // Bind value directly to active_model signal
                     prop:value=move || active_model.get()
                     on:change=move |ev| {
-                    let new_val = event_target_value(&ev);
-                    if new_val != active_model.get_untracked() {
-                        load_model(new_val);
+                        let new_val = event_target_value(&ev);
+                        if new_val != active_model.get_untracked() { load_model(new_val); }
                     }
-                }>
+                >
                     // When no model selected
                     <Show when=move || active_model.get().is_empty()>
                         <option value="" disabled selected>"Select a model to start"</option>
@@ -321,23 +326,34 @@ fn App() -> impl IntoView {
                         key=|name| name.clone()
                         children=move |name| {
                             let is_selected = name == active_model.get();
-                            view! { 
-                                <option value=name.clone() selected=is_selected>
-                                    {name.to_uppercase()}
-                                </option> }
+                            view! { <option value=name.clone() selected=is_selected>{name.to_uppercase()}</option> }
                         }
                     />
                 </select>
             </div>
 
-             <hr style="border-color: #4d4d4f; width: 100%;" />
+            <hr style="border-color: #4d4d4f; width: 100%; margin: 10px 0;" />
+
+            // System Prompt
+            <div class="control-group">
+                <label class="flex-row">
+                    "System Prompt"
+                    <HelpTooltip text="Give the AI a role or instruction. E.g., 'Speak in a happy way with no more than 30 words'."/>
+                </label>
+                <textarea
+                    rows="3"
+                    placeholder="Optional: Give the AI a role or instruction..."
+                    prop:value=move || system_prompt.get()
+                    on:input=move |ev| set_system_prompt.set(event_target_value(&ev))
+                ></textarea>
+            </div>
 
             // Temperature slide
             <div class="control-group">
-                <label style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center;">
+                <label class="flex-between">
+                    <div class="flex-row">
                         "Temperature"
-                        <HelpTooltip text="Controls randomness. Higher values (e.g., 1.0) make output more creative but less precise. Lower values (e.g., 0.2) make it deterministic and focused."/>
+                        <HelpTooltip text="Higher values = more creative. Lower = more focused."/>
                     </div>
                     <span class="value-display">{move || temperature.get()}</span>
                 </label>
@@ -349,12 +365,13 @@ fn App() -> impl IntoView {
 
             // Top P slide
             <div class="control-group">
-                <label style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center;">
-                        "Top P " 
-                        <HelpTooltip text="Nucleus sampling. Restricts token selection to the top % of probability mass. 0.9 means considering the top 90%. Lower values reduce diversity."/>
+                <label class="flex-between">
+                    <div class="flex-row">
+                        "Top P" 
+                        <HelpTooltip text="Nucleus sampling. Restricts token choices to top %."/>
                     </div>
-                    <span class="value-display">{move || top_p.get()}</span></label>
+                    <span class="value-display">{move || top_p.get()}</span>
+                </label>
                 <input type="range" min="0.0" max="1.0" step="0.05" 
                     prop:value=move || top_p.get()
                     on:input=move |ev| set_top_p.set(event_target_value(&ev).parse().unwrap_or(0.9))
@@ -363,9 +380,9 @@ fn App() -> impl IntoView {
 
             // Max Tokens
             <div class="control-group">
-                <label style="display: flex; align-items: center;">
+                <label class="flex-row">
                     "Max Tokens"
-                    <HelpTooltip text="The maximum number of tokens to generate. Increase this if your answers are getting cut off."/>
+                    <HelpTooltip text="Max length of generated response."/>
                 </label>
                 <input type="number"
                     prop:value=move || max_tokens.get()
@@ -375,22 +392,20 @@ fn App() -> impl IntoView {
 
             // Seed
             <div class="control-group">
-                <label style="display: flex; align-items: center;">
+                <label class="flex-row">
                     "Seed (Optional)"
-                    <HelpTooltip text="A number to reproduce specific results. Using the same seed with the same settings will generate the exact same response."/>
+                    <HelpTooltip text="Fixed number for reproducible results."/>
                 </label>
                 <input type="number" placeholder="Random"
                     // If no input
                     on:input=move |ev| {
                         let val = event_target_value(&ev);
-                        if val.is_empty() {
-                            set_seed.set(None);
-                        } else {
-                            set_seed.set(val.parse().ok());
-                        }
+                        if val.is_empty() { set_seed.set(None); } 
+                        else { set_seed.set(val.parse().ok()); }
                     }
                 />
             </div>
+
             // show if server online
             <div id="server-status">
                 <div class={move || format!("status-dot {}", if is_online.get() { "online" } else { "" })}></div>
@@ -404,7 +419,7 @@ fn App() -> impl IntoView {
                 <For
                     each=move || chat_history.get()
                     // use unique ID
-                    key=|msg| msg.id 
+                    key=|msg| msg.id
                     children=move |msg| {
                         let msg_type = if msg.role == "User" { "user" } else { "ai" };
                         let avatar_text = if msg.role == "User" { "U" } else { "AI" };
@@ -416,13 +431,17 @@ fn App() -> impl IntoView {
                         }
                     }
                 />
+                
+                // streaming content 
                 <Show when=move || !streaming_content.get().is_empty() || is_generating.get()>
-                    <div class="message ai">
+                     <div class="message ai">
                         <div class="avatar">"AI"</div>
                         <div class="content">{move || streaming_content.get()}</div>
                     </div>
                 </Show>
+
             </div>
+
             // User input box
             <div id="input-area">
                 <div class="input-container">
@@ -438,17 +457,18 @@ fn App() -> impl IntoView {
                             }
                         }
                     ></textarea>
-                    // Send button
+                    
                     <Show 
                         when=move || is_generating.get()
                         fallback=move || view! {
-                            <button id="send-btn" on:click=move |_| send_message()>
+                            // Send button
+                            <button id="send-btn" class="action-btn" on:click=move |_| send_message()>
                                 "Send"
                             </button>
                         }
                     >   
                         // Stop inference
-                        <button id="stop-btn" on:click=move |_| stop_generation()>
+                        <button id="stop-btn" class="action-btn" on:click=move |_| stop_generation()>
                             "Stop"
                         </button>
                     </Show>
@@ -456,10 +476,11 @@ fn App() -> impl IntoView {
             </div>
         </div>
         
+        // Loading Overlay
         <Show when=move || loading_overlay.get().is_some()>
-             <div id="loading-overlay" style="display: flex;">
+             <div id="loading-overlay">
                 <div class="spinner"></div>
-                <h3 style="margin-top: 20px;">{move || loading_overlay.get().unwrap()}</h3>
+                <h3 style="margin-top: 20px; color: white;">{move || loading_overlay.get().unwrap()}</h3>
             </div>
         </Show>
     }
