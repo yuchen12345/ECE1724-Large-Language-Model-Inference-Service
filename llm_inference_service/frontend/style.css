@@ -241,6 +241,7 @@ label { font-size: 0.85rem; font-weight: bold; color: var(--text-secondary); }
     left: -10px;
     opacity: 0;
     transition: opacity 0.3s;
+    white-space: pre-wrap;
 }
 .tooltip-text::after {
     content: "";
@@ -253,3 +254,85 @@ label { font-size: 0.85rem; font-weight: bold; color: var(--text-secondary); }
     border-color: #333 transparent transparent transparent;
 }
 .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+
+/* Export */
+.export-btn {
+    width: 100%;
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.export-btn:hover {
+    background-color: var(--input-bg);
+    border-color: var(--text-secondary);
+}
+
+.export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.file-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px 8px 10px; /* Spacing above textarea */
+}
+
+.hidden-input {
+    display: none;
+}
+
+/* Attach File button */
+.upload-btn {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+}
+.upload-btn:hover {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+}
+
+/* The badge showing the filename */
+.file-badge {
+    background-color: rgba(69, 125, 203, 0.2);
+    color: var(--accent-color);
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(69, 125, 203, 0.4);
+}
+/* the X button to remove file */
+.remove-file {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+}
+.remove-file:hover {
+    color: var(--danger-color);
+}

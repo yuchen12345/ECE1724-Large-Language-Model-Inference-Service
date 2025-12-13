@@ -52,33 +52,20 @@ fn detect_vram_mb() -> usize {
         .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
         .output();
 
-    match output_result {
-        Ok(o) => {
-            if o.status.success() {
-                // Parse output string
-                let stdout: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&o.stdout);
-                
-                let first_line = stdout.lines().next();
-                if let Some(line) = first_line {
-                    let parsed_result = line.trim().parse::<usize>();
-                    if let Ok(total_mb) = parsed_result {
-                        // Leave 1GB for system overhead
-                        let safe_limit: usize = total_mb.saturating_sub(1024); 
-                        println!(
-                            "GPU VRAM: {} MB. Using safe limit: {} MB",
-                            total_mb, 
-                            safe_limit
-                        ); 
-                        return safe_limit;
-                    }
+    if let Ok(o) = output_result {
+        if o.status.success() {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            let first_line = stdout.lines().next();
+            if let Some(line) = first_line {
+                if let Ok(total_mb) = line.trim().parse::<usize>() {
+                    let safe_limit = total_mb.saturating_sub(1024);
+                    println!("GPU VRAM: {} MB. Using safe limit: {} MB", total_mb, safe_limit);
+                    return safe_limit;
                 }
             }
         }
-        // For machine without NVIDIA drivers
-        Err(_) | Ok(_) => {
-            println!("VRAM detection failed. Using default.");
-        }
     }
+    println!("VRAM detection failed. Using default.");
     #[cfg(target_os = "macos")]{
         return 6976;
     } // Default for Mac

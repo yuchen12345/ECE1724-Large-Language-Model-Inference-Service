@@ -4,7 +4,8 @@ use gloo_net::http::Request;
 use futures::StreamExt;
 use wasm_streams::ReadableStream;
 use wasm_bindgen::JsCast;
-use web_sys::AbortController;
+use wasm_bindgen::closure::Closure;
+use web_sys::{HtmlInputElement, FileReader, AbortController};
 
 const API_BASE: &str = "http://127.0.0.1:8081";
 
@@ -74,6 +75,7 @@ fn App() -> impl IntoView {
             logging::log!("Generation stopped by user");
         }
     };
+
     
     // chat history box
     let (chat_history, set_chat_history) = create_signal::<Vec<ChatMessage>>(
@@ -87,7 +89,6 @@ fn App() -> impl IntoView {
     ); 
     
     let (user_input_text, set_user_input_text) = create_signal("".to_string()); // user input
-    // [Note]: is_generating definition moved to top
     let (loading_overlay, set_loading_overlay) = create_signal::<Option<String>>(None); // add overlay when model is loading
 
     // Model inference parameters
@@ -98,6 +99,49 @@ fn App() -> impl IntoView {
     let (system_prompt, set_system_prompt) = create_signal("".to_string());
     // control chat history window
     let chat_history_ref = create_node_ref::<html::Div>();
+    // control file import
+    let (file_content, set_file_content) = create_signal("".to_string());
+    let (file_name, set_file_name) = create_signal("".to_string());
+    let file_input_ref = create_node_ref::<html::Input>();
+    // Export chat history into a markdown file
+    let export_chat = move || {
+        // Get current history
+        let history = chat_history.get_untracked();
+        if history.is_empty() { return; }
+
+        let mut markdown_text = String::new();
+        markdown_text.push_str("# Chat History Export\n\n");
+    
+        for msg in history {
+            let role_title = if msg.role == "User" { "## User" } else { "## AI" };
+            markdown_text.push_str(&format!("{}\n{}\n\n", role_title, msg.content));
+        }
+        // create a blob
+        use web_sys::{Blob, BlobPropertyBag, Url, HtmlAnchorElement};
+        let props = BlobPropertyBag::new();
+        props.set_type("text/markdown");
+        // Convert rust string to js array
+        let parts = js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(&markdown_text));
+        
+        if let Ok(blob) = Blob::new_with_str_sequence_and_options(&parts, &props) {
+            // create a temporary URL
+            if let Ok(url) = Url::create_object_url_with_blob(&blob) {
+                if let Some(window) = web_sys::window() {
+                    if let Some(doc) = window.document() {
+                        if let Ok(anchor) = doc.create_element("a") {
+                            let anchor: HtmlAnchorElement = anchor.unchecked_into();
+                            anchor.set_href(&url);
+                            // Generate filename with timestamp
+                            let filename = format!("chat_history_{}.md", js_sys::Date::now() as u64);
+                            anchor.set_download(&filename);
+                            anchor.click();
+                            let _ = Url::revoke_object_url(&url); // Cleanup
+                        }
+                    }
+                }
+            }
+        }
+    };
 
     // Init
     create_effect(move |_| {
@@ -168,11 +212,50 @@ fn App() -> impl IntoView {
             set_loading_overlay.set(None);
         });
     };
+    // Handle file upload reading
+    let on_file_upload = move |ev: web_sys::Event| {
+        let input: HtmlInputElement = event_target(&ev);
+        if let Some(files) = input.files() {
+            if let Some(file) = files.get(0) {
+                let name = file.name();
+                set_file_name.set(name.clone());
+                // Initialize standard browser FileReader
+                let reader = FileReader::new().unwrap();
+                let reader_c = reader.clone();
+                
+                // handle file load
+                let onload = Closure::wrap(Box::new(move |_e: web_sys::Event| {
+                    if let Ok(res) = reader_c.result() {
+                        // The file is read as a raw string
+                        if let Some(text) = res.as_string() {
+                            set_file_content.set(text);
+                            logging::log!("File loaded: {}", name);
+                        }
+                    }
+                }) as Box<dyn FnMut(_)>);
+                
+                reader.set_onload(Some(onload.as_ref().unchecked_ref()));
+                onload.forget(); // Keep closure alive
+                reader.read_as_text(&file).unwrap();// Reads as UTF-8 text
+            }
+        }
+    };
+
+    // Clear attached file
+    let clear_file = move || {
+        set_file_name.set("".to_string());
+        set_file_content.set("".to_string());
+        if let Some(input) = file_input_ref.get() {
+            input.set_value(""); // Clear HTML input
+        }
+    };
 
     // Send Message
     let send_message = move || {
         // fetch user input and remove space
         let text = user_input_text.get_untracked().trim().to_string();
+        let current_file_content = file_content.get_untracked();
+        let current_file_name = file_name.get_untracked();
         if text.is_empty() || is_generating.get_untracked() { 
             return; 
         }
@@ -187,12 +270,32 @@ fn App() -> impl IntoView {
         set_is_generating.set(true);
         set_streaming_content.set("".to_string()); // Clear stream buffer
 
+        if let Some(input) = file_input_ref.get() {
+            input.set_value("");
+        }
+        set_file_name.set("".to_string()); // Reset UI name
+        set_file_content.set("".to_string()); // Reset content signal logic
+
+        // Construct Prompt with file context
+        let display_content = if !current_file_name.is_empty() {
+             format!("[File: {}]\n{}", current_file_name, text)
+        } else {
+             text.clone()
+        };
+        // Inject the file content into the prompt
+        let prompt_payload = if !current_file_content.is_empty() {
+            format!("The user uploaded a file named '{}'.\n\nFile Content:\n```\n{}\n```\n\nUser Instruction:\n{}", 
+                current_file_name, current_file_content, text)
+        } else {
+            text
+        };
+
         // Push user input to chat history
         set_chat_history.update(|h| {
             h.push(ChatMessage { 
                     id: js_sys::Date::now() as u64,
                     role: "User".into(), 
-                    content: text.clone(), 
+                    content: display_content, 
                 }
             )
         });
@@ -202,7 +305,7 @@ fn App() -> impl IntoView {
             // inference parameters
             let sys_prompt_input = system_prompt.get_untracked().trim().to_string();
             let payload = InferRequest {
-                prompt: text,
+                prompt: prompt_payload,
                 temperature: temperature.get_untracked(),
                 top_p: top_p.get_untracked(),
                 max_tokens: max_tokens.get_untracked(),
@@ -406,6 +509,18 @@ fn App() -> impl IntoView {
                 />
             </div>
 
+            <hr style="border-color: #4d4d4f; width: 100%; margin: 10px 0;" />
+            // Export button
+            <div class="control-group">
+                <button 
+                    class="export-btn" 
+                    on:click=move |_| export_chat()
+                    disabled=move || chat_history.get().is_empty()
+                >
+                    "Export Chat (.md)"
+                </button>
+            </div>
+
             // show if server online
             <div id="server-status">
                 <div class={move || format!("status-dot {}", if is_online.get() { "online" } else { "" })}></div>
@@ -445,6 +560,34 @@ fn App() -> impl IntoView {
             // User input box
             <div id="input-area">
                 <div class="input-container">
+                    <div class="file-toolbar">
+                        // Hidden actual input
+                        <input type="file" 
+                            id="file-upload" 
+                            class="hidden-input"
+                            node_ref=file_input_ref
+                            on:change=on_file_upload 
+                        />
+                        // Custom Button/Label
+                        <div class="tooltip-container">
+                            <label for="file-upload" class="upload-btn">
+                                "Attach File"
+                            </label>
+                            <span class="tooltip-text">
+                                "Supported: .txt, .rs, .md, .json, .css, .js, .py, .toml, etc.\n"
+                                "Safe Size: < 7KB (~250 lines)\n"
+                                "If no response, try break file into parts."
+                            </span>
+                        </div>
+                        // Show filename if attached
+                        <Show when=move || !file_name.get().is_empty()>
+                            <span class="file-badge">
+                                {move || file_name.get()}
+                                <button class="remove-file" on:click=move |_| clear_file()>"✕"</button>
+                            </span>
+                        </Show>
+                    </div>
+
                     <textarea 
                         placeholder="Send a message..."
                         prop:value=move || user_input_text.get()
