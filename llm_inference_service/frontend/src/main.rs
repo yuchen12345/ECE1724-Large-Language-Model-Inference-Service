@@ -4,6 +4,7 @@ use gloo_net::http::Request;
 use futures::StreamExt;
 use wasm_streams::ReadableStream;
 use wasm_bindgen::JsCast;
+use web_sys::AbortController;
 
 const API_BASE: &str = "http://127.0.0.1:8081";
 
@@ -57,6 +58,21 @@ fn App() -> impl IntoView {
     let (models, set_models) = create_signal::<Vec<String>>(vec![]); // check list of models
     let (active_model, set_active_model) = create_signal("".to_string()); // check model that is selected
     
+    // show if is generating, to disable/enable send button
+    let (is_generating, set_is_generating) = create_signal(false); 
+    let (abort_controller, set_abort_controller) = create_signal::<Option<AbortController>>(None);
+    // Handle the streaming text separately
+    let (streaming_content, set_streaming_content) = create_signal("".to_string());
+
+    let stop_generation = move || {
+        if let Some(controller) = abort_controller.get_untracked() {
+            controller.abort();
+            set_abort_controller.set(None);
+            set_is_generating.set(false);
+            logging::log!("Generation stopped by user");
+        }
+    };
+    
     // chat history box
     let (chat_history, set_chat_history) = create_signal::<Vec<ChatMessage>>(
         vec![
@@ -69,11 +85,8 @@ fn App() -> impl IntoView {
     ); 
     
     let (user_input_text, set_user_input_text) = create_signal("".to_string()); // user input
-    // show if is generating, to disable/enable send button
-    let (is_generating, set_is_generating) = create_signal(false); 
+    // [Note]: is_generating definition moved to top
     let (loading_overlay, set_loading_overlay) = create_signal::<Option<String>>(None); // add overlay when model is loading
-    // Handle the streaming text separately
-    let (streaming_content, set_streaming_content) = create_signal("".to_string());
 
     // Model inference parameters
     let (temperature, set_temperature) = create_signal(0.7);
@@ -191,8 +204,21 @@ fn App() -> impl IntoView {
                 max_tokens: max_tokens.get_untracked(),
                 seed: seed.get_untracked(),
             };
+
+            let controller = AbortController::new().ok();
+            let signal = controller.as_ref().map(|c| c.signal());
+            set_abort_controller.set(controller);
+
+            // Use Request builder pattern to attach signal correctly
+            let mut request_builder = Request::post(&format!("{}/infer_stream", API_BASE));
+            
+            if let Some(s) = signal.as_ref() {
+                // gloo_net expects Option<&AbortSignal>, so we wrap s in Some()
+                request_builder = request_builder.abort_signal(Some(s));
+            }
+
             // send request for inference
-            let response = Request::post(&format!("{}/infer_stream", API_BASE))
+            let response = request_builder
                 .json(&payload)
                 .unwrap()
                 .send()
@@ -252,7 +278,7 @@ fn App() -> impl IntoView {
                     }
                 }
             } else {
-                logging::error!("Network error");
+                logging::error!("Network error or aborted");
             }
 
             // When done, push the full message to history
@@ -267,6 +293,7 @@ fn App() -> impl IntoView {
             }
 
             set_is_generating.set(false);
+            set_abort_controller.set(None);
         });
     };
 
@@ -412,9 +439,19 @@ fn App() -> impl IntoView {
                         }
                     ></textarea>
                     // Send button
-                    <button id="send-btn" on:click=move |_| send_message() disabled=move || is_generating.get()>
-                        "Send"
-                    </button>
+                    <Show 
+                        when=move || is_generating.get()
+                        fallback=move || view! {
+                            <button id="send-btn" on:click=move |_| send_message()>
+                                "Send"
+                            </button>
+                        }
+                    >   
+                        // Stop inference
+                        <button id="stop-btn" on:click=move |_| stop_generation()>
+                            "Stop"
+                        </button>
+                    </Show>
                 </div>
             </div>
         </div>

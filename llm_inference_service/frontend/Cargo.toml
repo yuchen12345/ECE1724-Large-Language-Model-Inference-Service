@@ -11,7 +11,7 @@ serde_json = "1.0"
 futures = "0.3"
 wasm-bindgen = "0.2"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["HtmlElement", "Element", "ReadableStream"] }
+web-sys = { version = "0.3", features = ["HtmlElement", "Element", "ReadableStream", "AbortController", "AbortSignal"] }
 wasm-streams = "0.4"
 console_error_panic_hook = "0.1"
 

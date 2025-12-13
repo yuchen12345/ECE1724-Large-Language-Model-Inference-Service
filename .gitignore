@@ -1,3 +1,6 @@
 llm_inference_service/backend/target/
 llm_inference_service/backend/Cargo.lock
 llm_inference_service/frontend/target/
+llm_inference_service/frontend/dist/
+llm_inference_service/backend/archive/
+exclude_list.txt
