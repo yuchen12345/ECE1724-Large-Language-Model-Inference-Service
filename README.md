@@ -1,12 +1,14 @@
 # ECE1724-Large-Language-Model-Inference-Service
 ## Team Information
-Yingchen Jiang 1010814610
 
-Yuchen Zoe 1006708779
-yuchenzoe.xu@mail.utoronto.ca
+| Name           | Student ID  | Email                         |
+|----------------|-------------|-------------------------------|
+| Yingchen Jiang | 1010814610  |                               |
+| Yuchen Zoe Xu  | 1006708779  | yuchenzoe.xu@mail.utoronto.ca |
+
 
 ## Video Presentation
-https://drive.google.com/file/d/1RkAFQKEz8gMHrJrJiHtaihHjM9hsEz4g/view?usp=sharing
+https://drive.google.com/file/d/18GvJWGg6Cde0rkAtcILo_ZcqBuS4fiHF/view?usp=sharing
 
 ## Video Demo
 
@@ -99,21 +101,21 @@ curl http://localhost:8081/models
 ```bash
 curl -X POST http://localhost:8081/load_model \
   -H "Content-Type: application/json" \
-  -d '{"model": "mistral"}'
+  -d '{"name": "mistral"}'
 ```
 #### Unload a model
 > This endpoint unloads a model from memory and frees GPU VRAM.
 ```bash
 curl -X POST http://localhost:8081/unload_model \
   -H "Content-Type: application/json" \
-  -d '{"model": "mistral"}'
+  -d '{"name": "mistral"}'
 ```
 #### Set a model as active
 > This endpoint sets the active model used for subsequent inference requests.
 ```bash
 curl -X POST http://localhost:8081/set_model \
   -H "Content-Type: application/json" \
-  -d '{"model": "mistral"}'
+  -d '{"name": "mistral"}'
 ```
 #### Run inference without streaming
 > This endpoint runs a standard inference request and returns the fully generated response. The users can set the generation parameters if they want. 
@@ -197,8 +199,8 @@ During inference, tokens are received from the backend via streaming and display
 | Real-time streaming (SSE + tokio mpsc)    |   | ✓ |
 | Frontend UI design (Leptos)               | ✓ |   |
 | Frontend–backend integration              | ✓ |   |
-| Documentation & presentation              | ✓ | ✓ |
-
+| Documentation                             | ✓ | ✓ |
+| Presentation & Demo                       | ✓ |   |
 ## 8. Lessons learned and concluding remarks
 
 
