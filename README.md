@@ -8,27 +8,38 @@
 
 
 ## Video Presentation
-https://drive.google.com/file/d/18GvJWGg6Cde0rkAtcILo_ZcqBuS4fiHF/view?usp=sharing
+[video presentation](https://drive.google.com/file/d/18GvJWGg6Cde0rkAtcILo_ZcqBuS4fiHF/view?usp=sharing)
 
 ## Video Demo
-https://drive.google.com/file/d/18hCu2wLkswSUNpgBWB5x0ySXun6VhEZH/view?usp=sharing
+[video demo](https://drive.google.com/file/d/18hCu2wLkswSUNpgBWB5x0ySXun6VhEZH/view?usp=sharing)
 
+## Table of Contents
+- [1. Motivation](#sec-1-motivation)
+- [2. Objectives](#sec-2-objectives)
+- [3. Core Features](#sec-3-core-features)
+- [4. Additional Features](#sec-4-additional-features)
+- [5. User’s Guide](#sec-5-users-guide)
+- [6. Reproducibility Guide](#sec-6-reproducibility-guide)
+- [7. Contributions by each team member](#sec-7-contributions)
+- [8. Lessons learned and concluding remarks](#sec-8-lessons-learned)
+
+<a id="sec-1-motivation"></a>
 ## 1. Motivation
-Large Language Model (LLM) inference services, such as Google's Gemini 2.5, OpenAI's API (ChatGPT, GPT-5, etc.), LLaMA, and models from Mistral AI, are now core building blocks for modern AI systems. These services take user input and run trained LLMs to produce useful outputs, making advanced AI widely accessible. People use them every day as chatbots, code assistants, and study tools without needing high-end hardware or training expertise. 
+Large Language Model (LLM) inference services (e.g., Gemini, OpenAI APIs, LLaMA, Mistral) have become key components of modern AI applications. However, most production inference stacks are built with Python-based frameworks, which can face challenges in concurrency and long-term stability.
 
-Most production-grade inference systems today are built using Python-based frameworks. While these technologies are powerful and flexible, they still face limitations in scalability, latency, and memory efficiency.
+First, Python is not ideal for highly concurrent, CPU-bound workloads. The Global Interpreter Lock (GIL) limits true multi-threaded execution in common deployments, which can hurt throughput and latency under heavy load [1]. Although “no-GIL” builds are emerging, they are not the default for most deployed services [2]. In addition, interpreter overhead can make CPython slower than systems languages in performance-critical paths [3].
 
-Our motivation for this project comes from two main observations. Firstly, many backends such as vLLM depend heavily on Python. While Python provides rich machine learning libraries and efficient development capabilities, there exist constraints in concurrent and multithread performance, which are crucial for LLM inference services. One critical constraint arises from Python's Global Interpreter Lock (GIL), which allows only one thread to execute bytecode at a time, preventing multiple threads from executing bytecode simultaneously [1]. Before the Python 3.13 and 3.14 version, there was no supported "no-GIL" option, and even in 3.13, the GIL removal is experimental and is not set as the default. Most deployed services still run builds where the GIL is enabled [2]. Additionally, there are measurements that show CPython generally runs slower than other languages, such as Rust, due to interpreter and runtime overhead [3]. As a result, Python-based inference stacks often face slower execution speed and concurrency performance issues, which can affect the latency of the system.
+Second, Python services can suffer from memory and reliability issues in long-running deployments. Unintended object retention and common leak patterns may cause memory growth over time; an empirical study of open-source Python projects reports multiple recurring memory leak patterns [4]. Also, dynamic typing means some errors only appear at runtime, increasing the risk of production bugs.
 
-Secondly, Python's memory management can be a problem in long-running services. Objects are freed only when nothing references them, which makes it easy to keep them alive unintentionally—issues often arise in global caches or descriptors. For example, an empirical study of 671 open-source Python projects identified eight common memory leak patterns, showing that Python is susceptible to memory leaks [4]. In practice, services that run continuously may accumulate leaked memory, eventually leading to out-of-memory crashes. Also, Python's dynamic typing adds another risk: many mistakes (such as wrong attribute names, mixing types) only show up at runtime. This increases the chance of bugs being deployed to production, making the framework error-prone. Overall, managing stability and memory efficiency in large, continuously running Python services can become a great challenge.
+To address these limitations, we build an LLM inference service in Rust. Rust has no GIL and supports efficient async runtimes (e.g., Tokio) for streaming outputs. Its ownership and lifetime system provides safe, deterministic memory management, reducing the risk of memory leaks and data races. Since there is no widely adopted production-grade Rust LLM inference stack yet, this project explores a lightweight and reliable Rust-based system that supports real-time streaming, multi-model management, and stable memory usage.
 
-To address these two limitations, we propose building an LLM inference service with Rust. Rust works without GIL, so CPU-bound tasks can run in parallel across cores; Its async ecosystem, such as Tokio, gives efficient, non-blocking I/O for token-streaming workloads. Moreover, Rust's strict ownership and lifetime system ensures static and safe memory management, preventing memory leaks or race conditions. It enforces deterministic deallocation of space once an object goes out of scope, reducing the vulnerability of memory leaks and late runtime bugs in long-running services. In addition, there is no widely adopted, production-grade Rust system for LLM inference compared to Python/C++; this gap, combined with Rust's strengths in concurrency, latency, and memory safety, motivates us to build a lightweight, reliable LLM inference service that supports real-time streaming outputs, manages multiple models efficiently, and keeps memory usage safe.
-
+<a id="sec-2-objectives"></a>
 ## 2. Objectives
 The goal of this project is to build a local Rust-based LLM inference service that supports multiple open-source LLMs, handle requests through a RESTful API for easy integration, and deliver responses to frontend interface via real-time token streaming. 
 
 The backend focuses on performance and safety, while the frontend demonstrates a modern Rust-based full-stack approach.
 
+<a id="sec-3-core-features"></a>
 ## 3. Core Features
 Our project implement the following core features:
 ### (1) Core Inference Backend
@@ -58,6 +69,7 @@ To achieve a chat-like experience, our backend streams tokens instead of waiting
 ### (5) Web chat UI
 We build a rust-based frontend which is built with Leptos and compiled to WebAssembly, so the whole project stays Rust-based end-to-end. The frontend includes a model selector, some parameter controllers, and a chat window that displays streaming responses in real time.
 
+<a id="sec-4-additional-features"></a>
 ## 4. Additional Features
 In addition to the core features, we have several additional features to improve the system's robustness, usability and safety:
 ### (1) VRAM safety (NVIDIA GPU)
@@ -72,6 +84,7 @@ We supports stopping generation using AbortController, so the users can cancel a
 ### (4) Chat export and File import
 Users can export the full chat history as a .md file, saving their chat history. Also, they can import a text file or code files to the chat interface. The frontend reads the file content, includes it in the prompt and then sent to the backend, so the model can answer questions using the attached text.
 
+<a id="sec-5-users-guide"></a>
 ## 5. User’s Guide
 In this section, we will explain how to run and use the project, including how to start the backend, interact with its REST APIs, and how to use the web-based frontend interface. 
 
@@ -189,19 +202,23 @@ Users can attach text or source code files that are within certain size limit. T
 #### Real-time streaming responses
 During inference, tokens are received from the backend via streaming and displayed incrementally in the chat window.
 
+<a id="sec-6-reproducibility-guide"></a>
 ## 6. Reproducibility Guide
 
+<a id="sec-7-contributions"></a>
 ## 7. Contributions by each team member
 | Task | Yuchen | Yingchen |
 |------|-----|----------|
 | REST API implementation                   | ✓ |   |
 | Model loading                             |   | ✓ |
 | LLM inference integration (Candle)        |   | ✓ |
-| Real-time streaming (SSE + tokio mpsc)    |   | ✓ |
+| Real-time streaming (SSE + tokio mpsc)    | ✓ | ✓ |
 | Frontend UI design (Leptos)               | ✓ |   |
 | Frontend–backend integration              | ✓ |   |
 | Documentation                             | ✓ | ✓ |
 | Presentation & Demo                       | ✓ |   |
+
+<a id="sec-8-lessons-learned"></a>
 ## 8. Lessons learned and concluding remarks
 
 
