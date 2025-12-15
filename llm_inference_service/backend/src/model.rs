@@ -26,13 +26,42 @@ pub struct LoadedModel {
     pub device: Device,
 }
 
+fn pick_device() -> Device {
+    // macOS
+    #[cfg(target_os = "macos")]
+    {
+        match Device::new_metal(0) {
+            Ok(d) => {
+                println!("Using Metal: {:?}", d);
+                return d;
+            }
+            Err(e) => {
+                println!("Metal init failed: {:?}", e);
+                return Device::Cpu;
+            }
+        }
+    }
+    // Linux / Windows
+    #[cfg(not(target_os = "macos"))]
+    {
+        match Device::new_cuda(0) {
+            Ok(d) => {
+                println!("Using CUDA: {:?}", d);
+                return d;
+            }
+            Err(e) => {
+                println!("CUDA init failed: {:?}", e);
+                return Device::Cpu;
+            }
+        }
+    }
+}
+
 impl LoadedModel {
     pub fn load(name: &str) -> Result<Self> {
         // Select available computing device
-        let device = Device::cuda_if_available(0)
-            .or_else(|_| Device::new_metal(0))
-            .unwrap_or(Device::Cpu);
-        println!("Loading model '{}' on {:?}...", name, device);
+    let device = pick_device();
+    println!("Loading model '{}' on {:?}...", name, device);
 
         // Load Configuration
         let settings = Settings::new()?;

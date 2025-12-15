@@ -16,7 +16,7 @@ tokio-stream = "0.1"
 tower-http = { version = "0.5", features = ["cors"] }
 config = "0.15.19"
 
-
+[target.'cfg(not(target_os = "macos"))'.dependencies]
 candle-core = { version = "0.8.2", features = ["cuda"] }
 candle-nn = { version = "0.8.2", features = ["cuda"] }
 candle-transformers = { version = "0.8.2", features = ["cuda"] }
