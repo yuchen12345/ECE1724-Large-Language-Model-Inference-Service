@@ -19,9 +19,10 @@
 - [3. Core Features](#sec-3-core-features)
 - [4. Additional Features](#sec-4-additional-features)
 - [5. User’s Guide](#sec-5-users-guide)
-- [6. Reproducibility Guide](#sec-6-reproducibility-guide)
-- [7. Contributions by each team member](#sec-7-contributions)
-- [8. Lessons learned and concluding remarks](#sec-8-lessons-learned)
+- [6. Reproducibility Guide (macOS)](#sec-6-reproducibility-guide-macos)
+- [7. Reproducibility Guide (Ubuntu)](#sec-7-reproducibility-guide-ubuntu)
+- [8. Contributions by each team member](#sec-8-contributions)
+- [9. Lessons learned and concluding remarks](#sec-9-lessons-learned)
 
 <a id="sec-1-motivation"></a>
 ## 1. Motivation
@@ -37,37 +38,37 @@ To address these limitations, we build an LLM inference service in Rust. Rust ha
 ## 2. Objectives
 The goal of this project is to build a local Rust-based LLM inference service that supports multiple open-source LLMs, handle requests through a RESTful API for easy integration, and deliver responses to frontend interface via real-time token streaming. 
 
-The backend focuses on performance and safety, while the frontend demonstrates a modern Rust-based full-stack approach.
+The project consists of a backend and a frontend, where the backend focuses on performance and safety, while the frontend demonstrates a modern Rust-based full-stack approach.
 
 <a id="sec-3-core-features"></a>
 ## 3. Core Features
-Our project implement the following core features:
+Our project contains the following core features:
 ### (1) Core Inference Backend
 We use a Rust framework Candle to run open-source models, including Phi-2, Mistral-7B-Instruct, and LLaMA-3-8B-Instruct (GGUF). The backend supports:
 - Model loading, unloading, and execution;
 - Token-by-token response generation;
 - Memory/VRAM management to avoid system overload.
 ### (2) Multi-model support and runtime switching:
-Model options are listed in a config file, loaded into a lookup table (map) on startup, and one of the models is marked as the “active” model. Users can switch the active model at runtime through the API, without restarting the whole service.
+Model options are listed in a config file, loaded into a lookup table (map) on startup, and the user can specify an “active” model (the model used for inference). Users can switch the active model at runtime through the API without restarting the whole service.
 
 ### (3) REST API for Inference Access
 The backend exposes a set of REST endpoints using Axum so the frontend (or any client) can control the service easily. The following are all the APIs we have:
 
-`/health` checks if the server is running
+- `/health` checks if the server is running
 
-`/models` returns the available model list
+- `/models` returns the available model list
 
-`/load_model`, `/set_model`, `/unload_model` handle model loading, unloading and switching
+- `/load_model`, `/set_model`, `/unload_model` handle model loading, unloading and switching
 
-`/infer` runs normal (non-streaming) generation
+- `/infer` runs normal (non-streaming) generation
 
-`/infer_stream` runs streaming generation
+- `/infer_stream` runs streaming generation
 
 ### (4) Real-time token streaming
-To achieve a chat-like experience, our backend streams tokens instead of waiting for the full response. It uses Server-Sent Events (SSE) to keep a persistent connection to the client, and a Tokio mpsc channel to pass tokens from the inference loop to the HTTP streaming response.
+To achieve a chat-like experience and reduce response latency, our backend streams tokens instead of waiting for the full response. It uses Server-Sent Events (SSE) to keep a persistent connection to the client, and a Tokio mpsc channel to pass tokens from the inference loop to the HTTP streaming response.
 
 ### (5) Web chat UI
-We build a rust-based frontend which is built with Leptos and compiled to WebAssembly, so the whole project stays Rust-based end-to-end. The frontend includes a model selector, some parameter controllers, and a chat window that displays streaming responses in real time.
+We build a rust-based frontend with Leptos and compiled to WebAssembly, so the whole project stays Rust-based end-to-end. The frontend includes a model selector, multiple parameter controllers, and a chat window that displays streaming responses in real time.
 
 <a id="sec-4-additional-features"></a>
 ## 4. Additional Features
@@ -76,13 +77,15 @@ In addition to the core features, we have several additional features to improve
 In order to avoid crashes when loading large models, our backend checks available GPU VRAM using `nvidia-smi`. It estimates the model memory cost (with an extra buffer), and only loads models when it is safe.
 
 ### (2) Configurable generation
-From the frontend interface, users can add generation prompts and tune generation behavior per request using temperature, top_p, max_tokens, and optional seed, which let the users control style of generated response and control output length.
+From the frontend interface, users can add generation prompts and tune generation behavior per request using `temperature`, `top_p`, `max_tokens`, and optional `seed`, which allows users to control the style of generated response and output length.
 
 ### (3) Request generation cancellation
-We supports stopping generation using AbortController, so the users can cancel an ongoing output safely when they are not satisfied with the output.
+We supports cancelling generation using `AbortController`, so the users can stop an ongoing output safely.
 
-### (4) Chat export and File import
-Users can export the full chat history as a .md file, saving their chat history. Also, they can import a text file or code files to the chat interface. The frontend reads the file content, includes it in the prompt and then sent to the backend, so the model can answer questions using the attached text.
+### (4) File import and chat export
+Users can import a text file or code files to the chat interface. The frontend reads the file content, includes it in the request body and then sent to the backend, so the model can answer questions using the attached text.
+
+Users can save chat messages into a single `.md` file using a feature provided through a UI control in the interface.
 
 <a id="sec-5-users-guide"></a>
 ## 5. User’s Guide
@@ -172,15 +175,15 @@ This command builds the frontend and opens the application in `http://127.0.0.1:
 Now, we will introduce how to use the frontend interface. The frontend contains the following features:
 
 #### Server status
-On the left-side corner, there is the server status showing. Green means server is running while red means not running.
+In the left corner, the server status indicator shows whether the server is online: green indicates running, and red indicates offline.
 ![server_online](/screenshots/server_online.png)
 
 #### Model selection
-Users can select which model to use from the dropdown menu. The selected model is set as the active model in the backend.
+Users can select the model to use from the dropdown menu. The selected model is set as the active model in the backend.
 ![model_selection](/screenshots/model_selection.png)
 
 #### System prompt
-Users can also set a system prompt to control model's behavior, e.g. speak in a sarcastic way in no more than 30 words.
+Users can specify a system prompt to control model's behavior, e.g. "speak in a sarcastic way in no more than 30 words."
 ![system_prompt](/screenshots/system_prompt.png)
 
 #### Generation parameters
@@ -196,17 +199,17 @@ The full chat history can be exported as a Markdown (`.md`) file.
 ![export_chat](/screenshots/export_chat.png)
 
 #### File attachment support
-Users can attach text or source code files that are within certain size limit. The frontend reads the file content and includes it in the prompt sent to the backend, allowing the model to answer questions based on the attached files.
+Users can attach text or code files that are within certain size limit. The frontend reads the file content and includes it in the response body sent to the backend, allowing the model to answer questions based on the attached files.
 ![import_file](/screenshots/import_file.png)
 
 #### Real-time streaming responses
 During inference, tokens are received from the backend via streaming and displayed incrementally in the chat window.
 
-<a id="sec-6-reproducibility-guide"></a>
-## 6. Reproducibility Guide
+<a id="sec-6-reproducibility-guide-macos"></a>
+## 6. Reproducibility Guide (macOS)
 This guide describes how to reproduce the system **on macOS**, including environment setup and steps to run both the backend and frontend.
 
-### 6.1 System Requirements (macOS)
+### 6.1 System Requirements
 This project is tested and verified **on macOS**. Please ensure you are running a recent macOS version and have administrator privileges for installing system dependencies.
 ### 6.2 Prerequisites
 #### Rust Toolchain
@@ -234,8 +237,8 @@ If **rustup is already installed**, update to the latest stable toolchain:
 rustup update stable
 rustup default stable
 ```
-#### Xcode Command Line Tools
-On **macOS**, Xcode Command Line Tools are required for compiling native dependencies.
+#### Xcode Command Line Tools(optional)
+On **macOS**, Xcode Command Line Tools can be used for compiling native dependencies.
 Install them using:
 ```bash
 xcode-select --install
@@ -258,11 +261,22 @@ Navigate to the backend directory:
 ```bash
 cd llm_inference_service/backend
 ```
-Run the backend service:
+After running the backend service, you can test the API endpoints using curl:
 ```bash
 cargo run
 ```
-The backend server will start locally and expose the required APIs.
+> ⚠️ possible build issue (CUDA-related Errors)
+> 
+> On macOS, you may encounter build errors like:
+> - `failed to execute 'nvcc': No such file or directory`
+> - `nvidia-smi failed, Ensure that you have CUDA installed`
+>
+> This happens because `Cargo.lock` was previously generated on a CUDA-enabled platform, causing Cargo to incorrectly attempt to build CUDA dependencies on macOS. You may try remove the existing lock file and rebuild dependencies for macOS (Metal backend):
+> ```bash
+> rm Cargo.lock
+> cargo clean
+> cargo run
+> ```
 ### 6.4 Frontend Setup and Execution
 Navigate to the frontend directory:
 ```bash
@@ -284,9 +298,87 @@ This command builds the frontend and automatically opens the application in the 
 ```
 http://127.0.0.1:8080/
 ```
+<a id="sec-7-reproducibility-guide-ubuntu"></a>
+## 7. Reproducibility Guide (Ubuntu)
+This guide describes how to reproduce the system **on Ubuntu**, including environment setup and steps to run both the backend and frontend. Both GPU (NVIDIA) and CPU-only configurations are supported.
 
-<a id="sec-7-contributions"></a>
-## 7. Contributions by each team member
+### 7.1 System Requirements
+This project is tested and verified **on Windows 11 + WSL2 (Ubuntu 24.04 LTS)**. GPU tested: **NVIDIA GeForce RTX 4070** (other NVIDIA GPUs may work).
+
+### 7.2 Prerequisites
+1. Install system dependencies
+
+The following commands update package lists and install common build tools needed to compile Rust dependencies, as well as `curl` and `git` for downloading and cloning.
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev curl git
+```
+2. Install Rust Toolchain
+
+If **rustup is not installed**, install it using the official method:
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+3. Clone the repository
+
+```bash
+git clone https://github.com/yuchen12345/ECE1724-Large-Language-Model-Inference-Service.git
+cd ECE1724-Large-Language-Model-Inference-Service
+
+```
+4. GPU or CPU setup
+
+- Users With NVIDIA GPU
+
+To check whether your GPU is visible to Ubuntu/WSL:
+```bash
+sudo apt install -y nvidia-utils-535
+nvidia-smi
+```
+- Users Without NVIDIA GPU
+
+By default, the project is configured to use CUDA in the `Cargo.toml` file:
+```toml
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+candle-core = { version = "0.8.2", features = ["cuda"] }
+candle-nn = { version = "0.8.2", features = ["cuda"] }
+candle-transformers = { version = "0.8.2", features = ["cuda"] }
+```
+So CPU-only users need to modify `Cargo.toml` to disable CUDA support:
+```toml
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+candle-core = { version = "0.8.2" }
+candle-nn = { version = "0.8.2" }
+candle-transformers = { version = "0.8.2" }
+```
+
+### 7.3 Backend Setup and Execution
+Navigate to the backend directory:
+```bash
+cd llm_inference_service/backend
+```
+The following steps ensure WSL can find GPU-related shared libraries and selects GPU #0. If you are CPU user you can skip this step.
+```bash
+export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+export CUDA_VISIBLE_DEVICES=0
+```
+After running the backend service, you can test the API endpoints using curl:
+```bash
+cargo run
+```
+ 
+### 7.4 Frontend Setup and Execution
+Same as Reproducibility Guide for macOS:
+```bash
+cd llm_inference_service/frontend
+rustup target add wasm32-unknown-unknown #first time running
+cargo install trunk #first time running
+trunk serve --open # open in http://127.0.0.1:8080/
+```
+
+<a id="sec-8-contributions"></a>
+## 8. Contributions by each team member
 | Task | Yuchen | Yingchen |
 |------|-----|----------|
 | REST API implementation                   | ✓ |   |
@@ -298,14 +390,15 @@ http://127.0.0.1:8080/
 | Documentation                             | ✓ | ✓ |
 | Presentation & Demo                       | ✓ |   |
 
-<a id="sec-8-lessons-learned"></a>
-## 8. Lessons learned and concluding remarks
-Through building this project, we gained valuable insights into designing a Rust-based large language model inference system from both system and application perspectives. One key lesson is that Rust’s ownership model and strong type system significantly improve reliability when developing long-running services. While the learning curve is steeper compared to Python, the guarantees around memory safety and concurrency made it easier to reason about shared state, streaming pipelines, and model lifecycle management. Implementing real-time token streaming with SSE and Tokio highlighted the importance of async design patterns, backpressure handling, and clean separation between inference logic and networking code. We also learned that multi-model management and VRAM safety checks are not just optimizations, but essential components for building a stable local inference service.
+<a id="sec-9-lessons-learned"></a>
+## 9. Lessons learned and concluding remarks
+Building this project taught us how to design a Rust-based LLM inference system from both the system and application sides. Rust’s ownership rules and strong typing helped us build a reliable long-running service. Compared with Python, Rust's safety around memory and concurrency made it easier to reason about shared state, streaming pipelines, and model loading/unloading. Implementing real-time token streaming with SSE and Tokio required careful async design and handling slow clients without overwhelming the system. We also learned that multi-model support and VRAM checks are quite necessary for stability in a local inference service.
 
-In conclusion, this project demonstrates the feasibility and advantages of using Rust as a foundation for LLM inference services. By combining Candle for model execution, Axum for REST APIs, and Leptos for a modern WebAssembly frontend, we achieved an end-to-end Rust stack that is performant, safe, and extensible. Although the ecosystem is still maturing compared to Python-based solutions, our system shows that Rust can support practical features such as streaming generation, runtime model switching, and user-friendly interfaces. Future work could focus on deeper optimization, broader hardware support, and more advanced scheduling strategies, but this project provides a solid baseline and learning experience for building reliable AI infrastructure in Rust.
+Overall, this project shows that Rust is a practical choice for LLM inference services. Using Candle for model execution, Axum for REST APIs, and Leptos for a WebAssembly frontend, we built an end-to-end Rust stack that is fast, safe, and easy to extend. While the Rust ML ecosystem is less mature than Python’s, our system supports real features like streaming output, switching models at runtime, and a usable UI. Future work could improve speed, add more hardware support, and explore better scheduling, but this project provides a strong baseline for building reliable AI services in Rust.
 
 ## References
-[1] Abhinav Ajitsaria, “What Is the Python Global Interpreter Lock (GIL)?,” Realpython.com, Mar. 06, 2018. Accessed: Oct. 06, 2025. [Online]. Available: https://realpython.com/python-gil/?utm_source  
-[2] “What’s New In Python 3.13,” Python documentation, 2024. Accessed: Oct. 06, 2025. [Online]. Available: https://docs.python.org/3/whatsnew/3.13.html?utm_source  
+[1] Abhinav Ajitsaria, “What Is the Python Global Interpreter Lock (GIL)?,” Realpython.com, Mar. 06, 2018. Accessed: Oct. 06, 2025. [Online]. Available: https://realpython.com/python-gil/  
+[2] “What’s New In Python 3.13,” Python documentation, 2024. Accessed: Oct. 06, 2025. [Online]. Available: https://docs.python.org/3/whatsnew/3.13.html
+
 [3] Lukas Beierlieb, A. Bauer, R. Leppich, Lukas Iffländer, and S. Kounev, “Efficient Data Processing: Assessing the Performance of Different Programming Languages,” Apr. 2023, doi: https://doi.org/10.1145/3578245.3584691.  
 [4] J. Chen, D. Yu, and H. Hu, “Towards an understanding of memory leak patterns: an empirical study in Python,” Software Quality Journal, vol. 31, no. 4, pp. 1303–1330, Jun. 2023, doi: https://doi.org/10.1007/s11219-023-09641-5.  
