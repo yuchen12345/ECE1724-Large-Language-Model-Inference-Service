@@ -204,6 +204,86 @@ During inference, tokens are received from the backend via streaming and display
 
 <a id="sec-6-reproducibility-guide"></a>
 ## 6. Reproducibility Guide
+This guide describes how to reproduce the system **on macOS**, including environment setup and steps to run both the backend and frontend.
+
+### 6.1 System Requirements (macOS)
+This project is tested and verified **on macOS**. Please ensure you are running a recent macOS version and have administrator privileges for installing system dependencies.
+### 6.2 Prerequisites
+#### Rust Toolchain
+If **rustup is not installed**, install it using the official method:
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+During installation, select:
+```
+1) Proceed with installation (default)
+```
+This will automatically install **rustup**, **rustc**, and **cargo**.
+After installation, reload the shell environment:
+```bash
+source $HOME/.cargo/env
+```
+Verify the installation:
+```bash
+rustup --version
+cargo --version
+rustc --version
+```
+If **rustup is already installed**, update to the latest stable toolchain:
+```bash
+rustup update stable
+rustup default stable
+```
+#### Xcode Command Line Tools
+On **macOS**, Xcode Command Line Tools are required for compiling native dependencies.
+Install them using:
+```bash
+xcode-select --install
+```
+Follow the popup instructions (installation usually takes 5–10 minutes).
+Verify installation:
+```bash
+xcode-select -p
+```
+Expected output example:
+```
+/Applications/Xcode.app/Contents/Developer
+```
+or
+```
+/Library/Developer/CommandLineTools
+```
+### 6.3 Backend Setup and Execution
+Navigate to the backend directory:
+```bash
+cd llm_inference_service/backend
+```
+Run the backend service:
+```bash
+cargo run
+```
+The backend server will start locally and expose the required APIs.
+### 6.4 Frontend Setup and Execution
+Navigate to the frontend directory:
+```bash
+cd llm_inference_service/frontend
+```
+If this is the **first time** running the frontend, add the WebAssembly target:
+```bash
+rustup target add wasm32-unknown-unknown
+```
+Install the frontend build tool:
+```bash
+cargo install trunk
+```
+Start the frontend development server:
+```bash
+trunk serve --open
+```
+This command builds the frontend and automatically opens the application in the browser at:
+```
+http://127.0.0.1:8080/
+```
 
 <a id="sec-7-contributions"></a>
 ## 7. Contributions by each team member
