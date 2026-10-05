@@ -1,10 +1,10 @@
 # ECE1724-Large-Language-Model-Inference-Service
 ## Team Information
 
-| Name           | Student ID  | Email                          |
-|----------------|-------------|--------------------------------|
-| Yingchen Jiang | 1010814610  | yingchen.jiang@mail.utoronto.ca|
-| Yuchen Zoe Xu  | 1006708779  | yuchenzoe.xu@mail.utoronto.ca  |
+| Name           | Email                          |
+|----------------|--------------------------------|
+| Yingchen Jiang | yingchen.jiang@mail.utoronto.ca|
+| Yuchen Zoe Xu  | yuchenzoe.xu@mail.utoronto.ca  |
 
 
 ## Video Presentation
